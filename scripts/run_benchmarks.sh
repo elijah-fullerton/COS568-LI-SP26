@@ -1,65 +1,73 @@
-#! /usr/bin/env bash
+#!/usr/bin/env bash
 
-echo "Executing benchmark and saving results..."
+set -euo pipefail
+shopt -s nullglob
 
-BENCHMARK=build/benchmark
-if [ ! -f $BENCHMARK ]; then
-    echo "benchmark binary does not exist"
-    exit
+BENCHMARK="build/benchmark"
+REPEATS="${BENCHMARK_REPEATS:-3}"
+DATASETS=(
+    "fb_100M_public_uint64"
+    "books_100M_public_uint64"
+    "osmc_100M_public_uint64"
+)
+INDEXES=(
+    "LIPP"
+    "BTree"
+    "DynamicPGM"
+)
+
+if [ ! -f "${BENCHMARK}" ]; then
+    echo "Error: ${BENCHMARK} does not exist. Run scripts/build_benchmark.sh first."
+    exit 1
 fi
 
-function execute_uint64_100M() {
-    echo "Executing operations for $1 and index $2"
-    echo "Executing lookup-only workload"
-    $BENCHMARK ./data/$1 ./data/$1_ops_2M_0.000000rq_0.500000nl_0.000000i --through --csv --only $2 -r 3 # benchmark lookup
-    echo "Executing insert+lookup workload"
-    $BENCHMARK ./data/$1 ./data/$1_ops_2M_0.000000rq_0.500000nl_0.500000i_0m --through --csv --only $2 -r 3 # benchmark insert and lookup
-    echo "Executing insert+lookup mixed workload with insert-ratio 0.9"
-    $BENCHMARK ./data/$1 ./data/$1_ops_2M_0.000000rq_0.500000nl_0.900000i_0m_mix --through --csv --only $2 -r 3 # benchmark insert and lookup mix
-    echo "Executing insert+lookup mixed workload with insert-ratio 0.1"
-    $BENCHMARK ./data/$1 ./data/$1_ops_2M_0.000000rq_0.500000nl_0.100000i_0m_mix --through --csv --only $2 -r 3 # benchmark insert and lookup mix
+mkdir -p results
+rm -f results/*_results_table.csv
+
+execute_uint64_100M() {
+    local dataset="$1"
+    local index_name="$2"
+
+    echo "Running ${index_name} on ${dataset}..."
+
+    "${BENCHMARK}" "./data/${dataset}" "./data/${dataset}_ops_2M_0.000000rq_0.500000nl_0.000000i" --through --csv --only "${index_name}" -r "${REPEATS}"
+    "${BENCHMARK}" "./data/${dataset}" "./data/${dataset}_ops_2M_0.000000rq_0.500000nl_0.500000i_0m" --through --csv --only "${index_name}" -r "${REPEATS}"
+    "${BENCHMARK}" "./data/${dataset}" "./data/${dataset}_ops_2M_0.000000rq_0.500000nl_0.900000i_0m_mix" --through --csv --only "${index_name}" -r "${REPEATS}"
+    "${BENCHMARK}" "./data/${dataset}" "./data/${dataset}_ops_2M_0.000000rq_0.500000nl_0.100000i_0m_mix" --through --csv --only "${index_name}" -r "${REPEATS}"
 }
 
-mkdir -p ./results
+add_csv_header() {
+    local file_path="$1"
+    local header="$2"
+    local tmp_file
 
-for DATA in fb_100M_public_uint64 books_100M_public_uint64 osmc_100M_public_uint64
-do
-for INDEX in LIPP BTree DynamicPGM
-do
-    execute_uint64_100M ${DATA} $INDEX
+    tmp_file="$(mktemp)"
+    {
+        echo "${header}"
+        sed '/^index_name,/d' "${file_path}"
+    } > "${tmp_file}"
+    mv "${tmp_file}" "${file_path}"
+}
+
+echo "Executing Task 1 benchmarks..."
+for dataset in "${DATASETS[@]}"; do
+    for index_name in "${INDEXES[@]}"; do
+        execute_uint64_100M "${dataset}" "${index_name}"
+    done
 done
-done
 
-echo "===================Benchmarking complete!===================="
-
-# add header for csv files
-for FILE in ./results/*.csv
-do
-    # Check if file contains 0.000000i to determine workload type
-    if [[ $FILE == *0.000000i* ]]; then
-        # For lookup-only workload
-        # Remove existing header if present
-        if head -n 1 $FILE | grep -q "index_name"; then
-            sed -i '1d' $FILE  # Delete the first line
-        fi
-        # Add the header
-        sed -i '1s/^/index_name,build_time_ns1,build_time_ns2,build_time_ns3,index_size_bytes,lookup_throughput_mops1,lookup_throughput_mops2,lookup_throughput_mops3,search_method,value\n/' $FILE
-    elif [[ $FILE == *mix* ]]; then
-        # For insert+lookup workload
-        # Remove existing header if present
-        if head -n 1 $FILE | grep -q "index_name"; then
-            sed -i '1d' $FILE  # Delete the first line
-        fi
-        # Add the header
-        sed -i '1s/^/index_name,build_time_ns1,build_time_ns2,build_time_ns3,index_size_bytes,mixed_throughput_mops1,mixed_throughput_mops2,mixed_throughput_mops3,search_method,value\n/' $FILE
+for file_path in results/*_results_table.csv; do
+    if [[ "${file_path}" == *"_0.000000i_results_table.csv" ]]; then
+        add_csv_header "${file_path}" \
+            "index_name,build_time_ns1,build_time_ns2,build_time_ns3,index_size_bytes,lookup_throughput_mops1,lookup_throughput_mops2,lookup_throughput_mops3,search_method,value"
+    elif [[ "${file_path}" == *"_mix_results_table.csv" ]]; then
+        add_csv_header "${file_path}" \
+            "index_name,build_time_ns1,build_time_ns2,build_time_ns3,index_size_bytes,mixed_throughput_mops1,mixed_throughput_mops2,mixed_throughput_mops3,search_method,value"
     else
-        # For insert+lookup workload
-        # Remove existing header if present
-        if head -n 1 $FILE | grep -q "index_name"; then
-            sed -i '1d' $FILE  # Delete the first line
-        fi
-        # Add the header
-        sed -i '1s/^/index_name,build_time_ns1,build_time_ns2,build_time_ns3,index_size_bytes,insert_throughput_mops1,lookup_throughput_mops1,insert_throughput_mops2,lookup_throughput_mops2,insert_throughput_mops3,lookup_throughput_mops3,search_method,value\n/' $FILE
+        add_csv_header "${file_path}" \
+            "index_name,build_time_ns1,build_time_ns2,build_time_ns3,index_size_bytes,insert_throughput_mops1,lookup_throughput_mops1,insert_throughput_mops2,lookup_throughput_mops2,insert_throughput_mops3,lookup_throughput_mops3,search_method,value"
     fi
-    echo "Header set for $FILE"
+    echo "Prepared CSV header for ${file_path}"
 done
+
+echo "Task 1 benchmarking complete."

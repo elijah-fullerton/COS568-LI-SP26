@@ -1,19 +1,26 @@
 #!/bin/bash
-# Create a minimal CMakeLists.txt
 
-set -e  # Exit on error
+set -euo pipefail
 
-# Backup the original CMakeLists.txt if not already backed up
-if [ ! -f CMakeLists.txt.original ]; then
-    echo "Backing up original CMakeLists.txt..."
-    cp CMakeLists.txt CMakeLists.txt.original
-    echo "Backup created: CMakeLists.txt.original"
-else
-    echo "Original CMakeLists.txt already backed up."
+if [ ! -f CMakeLists.txt ]; then
+    echo "Error: run this script from the repository root."
+    exit 1
 fi
 
-# Create a new minimal CMakeLists.txt
-echo "Creating minimal CMakeLists.txt..."
+if grep -q 'benchmarks/benchmark_dynamic_pgm.cc' CMakeLists.txt \
+    && grep -q 'benchmarks/benchmark_lipp.cc' CMakeLists.txt \
+    && grep -q 'benchmarks/benchmark_btree.cc' CMakeLists.txt \
+    && grep -q 'add_executable(generate generate.cc' CMakeLists.txt; then
+    echo "CMakeLists.txt already contains the Task 1 minimal benchmark build."
+    exit 0
+fi
+
+if [ ! -f CMakeLists.txt.original ]; then
+    echo "Backing up the current CMakeLists.txt to CMakeLists.txt.original..."
+    cp CMakeLists.txt CMakeLists.txt.original
+fi
+
+echo "Writing Task 1 minimal CMakeLists.txt..."
 cat > CMakeLists.txt << 'EOF'
 cmake_minimum_required(VERSION 3.10)
 project(WOSD)
@@ -77,4 +84,4 @@ target_link_libraries(benchmark
 target_include_directories(generate PRIVATE competitors/finedex/include)
 EOF
 
-echo "Minimal CMakeLists.txt created!"
+echo "Task 1 minimal CMakeLists.txt is ready."

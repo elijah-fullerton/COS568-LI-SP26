@@ -1,0 +1,40 @@
+Task 1 changes made by Codex
+===========================
+
+1. Updated `scripts/download_dataset.sh`
+   - Made downloads idempotent.
+   - Added a `curl` fallback when `wget` is unavailable.
+   - Added stricter shell error handling.
+
+2. Updated `scripts/create_minimal_cmake.sh`
+   - Made the script safe to rerun.
+   - Avoids overwriting `CMakeLists.txt` when the Task 1 minimal build is already present.
+   - Preserves the old backup behavior if a rewrite is actually needed.
+
+3. Updated `scripts/build_benchmark.sh`
+   - Switched to `cmake -S/-B` and `cmake --build`.
+   - Added validation for both `build/benchmark` and `build/generate`.
+   - Added parallel build support through `BUILD_JOBS`.
+
+4. Updated `scripts/run_benchmarks.sh`
+   - Clears stale Task 1 CSV outputs before a fresh run.
+   - Quotes paths and variables correctly.
+   - Adds deterministic CSV headers after each benchmark run.
+   - Keeps the Task 1 benchmark matrix fixed to Facebook, Books, and OSMC across LIPP, BTree, and DynamicPGM.
+
+5. Updated `scripts/run_all.sh`
+   - Added the missing analysis step.
+   - Added optional skip flags for reruns: `SKIP_DOWNLOAD`, `SKIP_WORKLOADS`, `SKIP_BUILD`, `SKIP_BENCHMARKS`, `SKIP_ANALYSIS`.
+   - Improved pipeline status messages.
+
+6. Rewrote `scripts/analysis.py`
+   - Selects the best-performing hyperparameter configuration per index, dataset, and workload based on the average of the 3 runs.
+   - Writes report-ready CSV summaries to `analysis_results/`.
+   - Writes a markdown summary to `analysis_results/task1_report_summary.md`.
+   - Generates a multi-panel throughput figure at `analysis_results/task1_throughput_summary.png`.
+
+7. Added `scripts/task1_job.slurm`
+   - Provides a cluster-safe `sbatch` entry point for the full Task 1 pipeline.
+
+8. Added `scripts/submit_task1.sh`
+   - Provides a small helper wrapper around `sbatch scripts/task1_job.slurm`.
