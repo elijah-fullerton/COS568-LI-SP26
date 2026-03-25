@@ -1,0 +1,23 @@
+\begin{tabular}{llrrr}
+\toprule
+Dataset & Workload & BTree & DynamicPGM & LIPP \\
+\midrule
+Facebook & Lookup-only & 1.73 & \textbf{1.60} & 11.83 \\
+Facebook & Insert throughput (50/50) & 2.05 & \textbf{1.58} & 11.81 \\
+Facebook & Lookup after insert (50/50) & 2.05 & \textbf{1.58} & 11.81 \\
+Facebook & Mixed throughput (10\% insert) & 1.82 & \textbf{1.59} & 11.83 \\
+Facebook & Mixed throughput (90\% insert) & 2.34 & \textbf{1.59} & 11.79 \\
+\midrule
+Books & Lookup-only & 1.73 & \textbf{1.60} & 11.01 \\
+Books & Insert throughput (50/50) & 2.05 & \textbf{1.58} & 10.98 \\
+Books & Lookup after insert (50/50) & 2.05 & \textbf{1.58} & 10.98 \\
+Books & Mixed throughput (10\% insert) & 1.82 & \textbf{1.59} & 11.01 \\
+Books & Mixed throughput (90\% insert) & 2.20 & \textbf{1.59} & 10.95 \\
+\midrule
+OSMC & Lookup-only & 1.73 & \textbf{1.60} & 19.21 \\
+OSMC & Insert throughput (50/50) & 2.05 & \textbf{1.58} & 19.10 \\
+OSMC & Lookup after insert (50/50) & 2.05 & \textbf{1.58} & 19.10 \\
+OSMC & Mixed throughput (10\% insert) & 1.82 & \textbf{1.59} & 19.19 \\
+OSMC & Mixed throughput (90\% insert) & 2.20 & \textbf{1.58} & 19.01 \\
+\bottomrule
+\end{tabular}
