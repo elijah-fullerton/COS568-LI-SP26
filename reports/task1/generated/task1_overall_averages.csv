@@ -1,0 +1,16 @@
+workload,workload_short_label,index_name,overall_avg_mops
+lookup_only,Lookup-only,BTree,1.8155355555555555
+lookup_only,Lookup-only,DynamicPGM,1.849308888888889
+lookup_only,Lookup-only,LIPP,342.2486666666667
+insert_throughput,Insert throughput (50/50),BTree,1.0583026666666666
+insert_throughput,Insert throughput (50/50),DynamicPGM,5.8823
+insert_throughput,Insert throughput (50/50),LIPP,1.5341525555555555
+post_insert_lookup,Lookup after insert (50/50),BTree,1.6478166666666667
+post_insert_lookup,Lookup after insert (50/50),DynamicPGM,0.485508
+post_insert_lookup,Lookup after insert (50/50),LIPP,320.4012666666667
+mixed_10_insert,Mixed throughput (10% insert),BTree,1.5291133333333333
+mixed_10_insert,Mixed throughput (10% insert),DynamicPGM,0.910936
+mixed_10_insert,Mixed throughput (10% insert),LIPP,13.820647777777777
+mixed_90_insert,Mixed throughput (90% insert),BTree,1.0623244444444444
+mixed_90_insert,Mixed throughput (90% insert),DynamicPGM,2.811538888888889
+mixed_90_insert,Mixed throughput (90% insert),LIPP,2.2114

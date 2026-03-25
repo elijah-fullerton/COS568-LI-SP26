@@ -1,0 +1,23 @@
+\begin{tabular}{lll}
+\toprule
+Dataset / Workload & Best BTree configuration & Best DynamicPGM configuration \\
+\midrule
+Facebook / Lookup-only & LinearSearch / 8 & LinearSearch / 16 \\
+Facebook / Insert throughput (50/50) & LinearSearch / 8 & ExponentialSearch / 256 \\
+Facebook / Lookup after insert (50/50) & LinearSearch / 8 & ExponentialSearch / 256 \\
+Facebook / Mixed throughput (10\% insert) & LinearSearch / 8 & BinarySearch / 64 \\
+Facebook / Mixed throughput (90\% insert) & LinearSearch / 6 & BinarySearch / 128 \\
+\midrule
+Books / Lookup-only & LinearSearch / 8 & LinearSearch / 16 \\
+Books / Insert throughput (50/50) & LinearSearch / 8 & InterpolationSearch / 512 \\
+Books / Lookup after insert (50/50) & LinearSearch / 8 & InterpolationSearch / 512 \\
+Books / Mixed throughput (10\% insert) & LinearSearch / 8 & LinearSearch / 32 \\
+Books / Mixed throughput (90\% insert) & LinearSearch / 8 & LinearSearch / 32 \\
+\midrule
+OSMC / Lookup-only & LinearSearch / 8 & LinearSearch / 16 \\
+OSMC / Insert throughput (50/50) & LinearSearch / 8 & LinearSearch / 1024 \\
+OSMC / Lookup after insert (50/50) & LinearSearch / 8 & BinarySearch / 1024 \\
+OSMC / Mixed throughput (10\% insert) & LinearSearch / 8 & BinarySearch / 64 \\
+OSMC / Mixed throughput (90\% insert) & LinearSearch / 8 & BinarySearch / 128 \\
+\bottomrule
+\end{tabular}

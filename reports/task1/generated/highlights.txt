@@ -1,0 +1,6 @@
+lookup_speedup_lipp_vs_btree=188.5
+mixed10_speedup_lipp_vs_btree=9.0
+insert_speedup_pgm_vs_btree=5.6
+mixed90_speedup_pgm_vs_lipp=1.27
+fb_lookup_size_ratio_lipp_vs_pgm=7.38
+osmc_lookup_size_ratio_lipp_vs_pgm=12.02

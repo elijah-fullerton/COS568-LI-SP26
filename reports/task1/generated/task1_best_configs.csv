@@ -1,0 +1,46 @@
+dataset,dataset_label,workload,workload_short_label,workload_long_label,index_name,metric_name,avg_metric,std_metric,index_size_bytes,search_method,value
+fb,Facebook,lookup_only,Lookup-only,Lookup-only throughput,BTree,lookup_throughput_mops,1.6936866666666668,0.027058593623632627,1856251088.0,LinearSearch,8
+fb,Facebook,lookup_only,Lookup-only,Lookup-only throughput,DynamicPGM,lookup_throughput_mops,1.7966433333333334,0.0340000797384686,1721297388.0,LinearSearch,16
+fb,Facebook,lookup_only,Lookup-only,Lookup-only throughput,LIPP,lookup_throughput_mops,358.30033333333336,4.513746731436707,12705922272.0,,
+fb,Facebook,insert_throughput,Insert throughput (50/50),"Insert throughput, 50% insert / 50% lookup",BTree,insert_throughput_mops,1.0588776666666666,0.06469751770783444,2197517688.0,LinearSearch,8
+fb,Facebook,insert_throughput,Insert throughput (50/50),"Insert throughput, 50% insert / 50% lookup",DynamicPGM,insert_throughput_mops,6.191556666666667,0.019888224880287672,1701187028.0,ExponentialSearch,256
+fb,Facebook,insert_throughput,Insert throughput (50/50),"Insert throughput, 50% insert / 50% lookup",LIPP,insert_throughput_mops,1.378252,0.45659905255559463,12679095104.0,,
+fb,Facebook,post_insert_lookup,Lookup after insert (50/50),"Post-insert lookup throughput, 50% insert / 50% lookup",BTree,lookup_throughput_mops,1.54551,0.032548199130929906,2197517688.0,LinearSearch,8
+fb,Facebook,post_insert_lookup,Lookup after insert (50/50),"Post-insert lookup throughput, 50% insert / 50% lookup",DynamicPGM,lookup_throughput_mops,0.4710666666666667,0.006828721419286491,1701187028.0,ExponentialSearch,256
+fb,Facebook,post_insert_lookup,Lookup after insert (50/50),"Post-insert lookup throughput, 50% insert / 50% lookup",LIPP,lookup_throughput_mops,349.26300000000003,9.017501797430734,12679095104.0,,
+fb,Facebook,mixed_10_insert,Mixed throughput (10% insert),"Mixed throughput, 10% insert",BTree,mixed_throughput_mops,1.46993,0.035885775269132274,1956120768.0,LinearSearch,8
+fb,Facebook,mixed_10_insert,Mixed throughput (10% insert),"Mixed throughput, 10% insert",DynamicPGM,mixed_throughput_mops,0.8494723333333333,0.0069342733497381875,1705226028.0,BinarySearch,64
+fb,Facebook,mixed_10_insert,Mixed throughput (10% insert),"Mixed throughput, 10% insert",LIPP,mixed_throughput_mops,13.487993333333334,2.7036147368702936,12700946864.0,,
+fb,Facebook,mixed_90_insert,Mixed throughput (90% insert),"Mixed throughput, 90% insert",BTree,mixed_throughput_mops,1.0822366666666667,0.0030111607211985567,2513462456.0,LinearSearch,6
+fb,Facebook,mixed_90_insert,Mixed throughput (90% insert),"Mixed throughput, 90% insert",DynamicPGM,mixed_throughput_mops,2.7992233333333334,0.010365887430520589,1702518268.0,BinarySearch,128
+fb,Facebook,mixed_90_insert,Mixed throughput (90% insert),"Mixed throughput, 90% insert",LIPP,mixed_throughput_mops,2.1579966666666666,0.5135253863464028,12656662928.0,,
+books,Books,lookup_only,Lookup-only,Lookup-only throughput,BTree,lookup_throughput_mops,1.6896799999999998,0.013007297951534722,1856251088.0,LinearSearch,8
+books,Books,lookup_only,Lookup-only,Lookup-only throughput,DynamicPGM,lookup_throughput_mops,1.9470133333333335,0.10741474955620493,1719163668.0,LinearSearch,16
+books,Books,lookup_only,Lookup-only,Lookup-only throughput,LIPP,lookup_throughput_mops,361.3503333333333,1.5944562988332156,11825518832.0,,
+books,Books,insert_throughput,Insert throughput (50/50),"Insert throughput, 50% insert / 50% lookup",BTree,insert_throughput_mops,1.0842749999999999,0.06768388225173448,2197517688.0,LinearSearch,8
+books,Books,insert_throughput,Insert throughput (50/50),"Insert throughput, 50% insert / 50% lookup",DynamicPGM,insert_throughput_mops,6.123666666666667,0.0015214101645804595,1700003108.0,InterpolationSearch,512
+books,Books,insert_throughput,Insert throughput (50/50),"Insert throughput, 50% insert / 50% lookup",LIPP,insert_throughput_mops,2.29102,0.6920486046514364,11785926480.0,,
+books,Books,post_insert_lookup,Lookup after insert (50/50),"Post-insert lookup throughput, 50% insert / 50% lookup",BTree,lookup_throughput_mops,1.5717733333333332,0.009018593139853991,2197517688.0,LinearSearch,8
+books,Books,post_insert_lookup,Lookup after insert (50/50),"Post-insert lookup throughput, 50% insert / 50% lookup",DynamicPGM,lookup_throughput_mops,0.5302943333333333,0.002233443728614854,1700003108.0,InterpolationSearch,512
+books,Books,post_insert_lookup,Lookup after insert (50/50),"Post-insert lookup throughput, 50% insert / 50% lookup",LIPP,lookup_throughput_mops,358.7726666666667,4.243234798541727,11785926480.0,,
+books,Books,mixed_10_insert,Mixed throughput (10% insert),"Mixed throughput, 10% insert",BTree,mixed_throughput_mops,1.47673,0.02718842032925049,1956120768.0,LinearSearch,8
+books,Books,mixed_10_insert,Mixed throughput (10% insert),"Mixed throughput, 10% insert",DynamicPGM,mixed_throughput_mops,0.93505,0.0013566402126822998,1703429848.0,LinearSearch,32
+books,Books,mixed_10_insert,Mixed throughput (10% insert),"Mixed throughput, 10% insert",LIPP,mixed_throughput_mops,17.526466666666668,3.212919890414671,11818525760.0,,
+books,Books,mixed_90_insert,Mixed throughput (90% insert),"Mixed throughput, 90% insert",BTree,mixed_throughput_mops,1.05841,0.006336660529542923,2365596448.0,LinearSearch,8
+books,Books,mixed_90_insert,Mixed throughput (90% insert),"Mixed throughput, 90% insert",DynamicPGM,mixed_throughput_mops,2.97192,0.031216546894235555,1703241188.0,LinearSearch,32
+books,Books,mixed_90_insert,Mixed throughput (90% insert),"Mixed throughput, 90% insert",LIPP,mixed_throughput_mops,2.8547933333333333,0.70550724599791,11753613200.0,,
+osmc,OSMC,lookup_only,Lookup-only,Lookup-only throughput,BTree,lookup_throughput_mops,2.06324,0.01247093420718753,1856251088.0,LinearSearch,8
+osmc,OSMC,lookup_only,Lookup-only,Lookup-only throughput,DynamicPGM,lookup_throughput_mops,1.80427,0.12256847555550324,1716194548.0,LinearSearch,16
+osmc,OSMC,lookup_only,Lookup-only,Lookup-only throughput,LIPP,lookup_throughput_mops,307.0953333333333,33.5027533230065,20628848672.0,,
+osmc,OSMC,insert_throughput,Insert throughput (50/50),"Insert throughput, 50% insert / 50% lookup",BTree,insert_throughput_mops,1.0317553333333334,0.07068407913777724,2197517688.0,LinearSearch,8
+osmc,OSMC,insert_throughput,Insert throughput (50/50),"Insert throughput, 50% insert / 50% lookup",DynamicPGM,insert_throughput_mops,5.331676666666667,0.06485815154799159,1700238628.0,LinearSearch,1024
+osmc,OSMC,insert_throughput,Insert throughput (50/50),"Insert throughput, 50% insert / 50% lookup",LIPP,insert_throughput_mops,0.9331856666666667,0.47324255280235406,20507817984.0,,
+osmc,OSMC,post_insert_lookup,Lookup after insert (50/50),"Post-insert lookup throughput, 50% insert / 50% lookup",BTree,lookup_throughput_mops,1.8261666666666667,0.07314038662432375,2197517688.0,LinearSearch,8
+osmc,OSMC,post_insert_lookup,Lookup after insert (50/50),"Post-insert lookup throughput, 50% insert / 50% lookup",DynamicPGM,lookup_throughput_mops,0.455163,0.010015509173277216,1700238628.0,BinarySearch,1024
+osmc,OSMC,post_insert_lookup,Lookup after insert (50/50),"Post-insert lookup throughput, 50% insert / 50% lookup",LIPP,lookup_throughput_mops,253.16813333333334,141.91265525680066,20507817984.0,,
+osmc,OSMC,mixed_10_insert,Mixed throughput (10% insert),"Mixed throughput, 10% insert",BTree,mixed_throughput_mops,1.64068,0.01646728473873776,1956120768.0,LinearSearch,8
+osmc,OSMC,mixed_10_insert,Mixed throughput (10% insert),"Mixed throughput, 10% insert",DynamicPGM,mixed_throughput_mops,0.9482856666666667,0.0038468804966564265,1703719788.0,BinarySearch,64
+osmc,OSMC,mixed_10_insert,Mixed throughput (10% insert),"Mixed throughput, 10% insert",LIPP,mixed_throughput_mops,10.447483333333333,1.1232963331888672,20602887232.0,,
+osmc,OSMC,mixed_90_insert,Mixed throughput (90% insert),"Mixed throughput, 90% insert",BTree,mixed_throughput_mops,1.0463266666666666,0.0005603768573221173,2365596448.0,LinearSearch,8
+osmc,OSMC,mixed_90_insert,Mixed throughput (90% insert),"Mixed throughput, 90% insert",DynamicPGM,mixed_throughput_mops,2.663473333333333,0.005890072627358394,1701839508.0,BinarySearch,128
+osmc,OSMC,mixed_90_insert,Mixed throughput (90% insert),"Mixed throughput, 90% insert",LIPP,mixed_throughput_mops,1.62141,0.25843088476418596,20408967088.0,,
