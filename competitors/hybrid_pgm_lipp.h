@@ -38,20 +38,25 @@ class HybridPGMLipp : public Competitor<KeyType, SearchClass> {
   }
 
   size_t EqualityLookup(const KeyType& lookup_key, uint32_t thread_id) const {
-    const size_t buffer_result = buffer_.EqualityLookup(lookup_key, thread_id);
-    if (buffer_result != util::OVERFLOW) {
-      return buffer_result;
+    (void)thread_id;
+    auto buffer_it = buffer_.find(lookup_key);
+    if (buffer_it != buffer_.end()) {
+      return buffer_it->value();
     }
     return lipp_.EqualityLookup(lookup_key, thread_id);
   }
 
   uint64_t RangeQuery(const KeyType& lower_key, const KeyType& upper_key, uint32_t thread_id) const {
-    return lipp_.RangeQuery(lower_key, upper_key, thread_id) +
-           buffer_.RangeQuery(lower_key, upper_key, thread_id);
+    uint64_t result = lipp_.RangeQuery(lower_key, upper_key, thread_id);
+    for (auto it = buffer_.lower_bound(lower_key); it != buffer_.end() && it->key() <= upper_key; ++it) {
+      result += it->value();
+    }
+    return result;
   }
 
   void Insert(const KeyValue<KeyType>& data, uint32_t thread_id) {
-    buffer_.Insert(data, thread_id);
+    (void)thread_id;
+    buffer_.insert(data.key, data.value);
     ++buffer_item_count_;
     if (buffer_item_count_ >= buffer_threshold_) {
       FlushBufferToLipp();
