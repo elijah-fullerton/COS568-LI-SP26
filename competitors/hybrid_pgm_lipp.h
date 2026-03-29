@@ -14,7 +14,8 @@
 template <class KeyType, class SearchClass, size_t pgm_error, size_t flush_threshold_items>
 class HybridPGMLipp : public Competitor<KeyType, SearchClass> {
  public:
-  HybridPGMLipp(const std::vector<int>& params) : buffer_threshold_override_(0) {
+  HybridPGMLipp(const std::vector<int>& params)
+      : lipp_(std::vector<int>{}), buffer_threshold_override_(0) {
     if (!params.empty() && params[0] > 0) {
       buffer_threshold_override_ = static_cast<size_t>(params[0]);
     }
@@ -59,7 +60,7 @@ class HybridPGMLipp : public Competitor<KeyType, SearchClass> {
 
   std::string name() const { return "HybridPGMLIPP"; }
 
-  std::size_t size() const { return lipp_.size() + buffer_.size(); }
+  std::size_t size() const { return lipp_.size() + buffer_.size_in_bytes(); }
 
   bool applicable(bool unique, bool range_query, bool insert, bool multithread,
                   const std::string& ops_filename) const {

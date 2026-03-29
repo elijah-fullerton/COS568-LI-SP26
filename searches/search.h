@@ -1,16 +1,15 @@
 #pragma once
 
 #include "../util.h"
-#include <boost/chrono.hpp>
+#include <atomic>
 #include <chrono>
 #include <cmath>
-#include <atomic>
 
 #define record_start()                                               \
-    boost::chrono::thread_clock::time_point thread_clock_start;      \
+    std::chrono::steady_clock::time_point thread_clock_start;        \
     std::chrono::high_resolution_clock::time_point hr_clock_start;   \
     if constexpr (record == 2){                                      \
-      thread_clock_start = boost::chrono::thread_clock::now();       \
+      thread_clock_start = std::chrono::steady_clock::now();         \
     } else if constexpr (record == 1){                               \
       hr_clock_start = std::chrono::high_resolution_clock::now();    \
     }
@@ -20,8 +19,8 @@
       ++Search<record>::research_num;                                                                                                     \
     }                                                                                                                                     \
     if constexpr (record == 2){                                                                                                           \
-      const auto end_time = boost::chrono::thread_clock::now();                                                                           \
-      Search<record>::timing += boost::chrono::duration_cast<boost::chrono::nanoseconds>(end_time - thread_clock_start)                   \
+      const auto end_time = std::chrono::steady_clock::now();                                                                             \
+      Search<record>::timing += std::chrono::duration_cast<std::chrono::nanoseconds>(end_time - thread_clock_start)                      \
           .count();                                                                                                                       \
       ++Search<record>::search_num;                                                                                                       \
     } else if constexpr (record == 1){                                                                                                    \
