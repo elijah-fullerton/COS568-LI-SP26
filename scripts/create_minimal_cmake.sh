@@ -9,6 +9,7 @@ fi
 
 if grep -q 'benchmarks/benchmark_dynamic_pgm.cc' CMakeLists.txt \
     && grep -q 'benchmarks/benchmark_lipp.cc' CMakeLists.txt \
+    && grep -q 'benchmarks/benchmark_hybrid_pgm_lipp.cc' CMakeLists.txt \
     && grep -q 'benchmarks/benchmark_btree.cc' CMakeLists.txt \
     && grep -q 'add_executable(generate generate.cc' CMakeLists.txt; then
     echo "CMakeLists.txt already contains the Task 1 minimal benchmark build."
@@ -42,7 +43,6 @@ set(CMAKE_CXX_STANDARD 17)
 
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
-find_package(Boost REQUIRED COMPONENTS chrono)
 
 add_subdirectory(dtl)
 
@@ -57,6 +57,7 @@ set(BENCH_SOURCES
     "benchmarks/benchmark_dynamic_pgm.cc"
     "benchmarks/benchmark_pgm.cc"
     "benchmarks/benchmark_lipp.cc"
+    "benchmarks/benchmark_hybrid_pgm_lipp.cc"
     "benchmarks/benchmark_btree.cc")
 
 file(GLOB_RECURSE SEARCH_SOURCES "searches/*.h" "searches/search.cpp")
@@ -68,12 +69,10 @@ target_compile_definitions(benchmark PRIVATE NDEBUGGING)
 
 target_include_directories(benchmark
         PRIVATE "competitors/PGM-index/include"  # For PGM
-        PRIVATE "competitors/stx-btree-0.9/include"  # For B+Tree
-        PRIVATE ${Boost_INCLUDE_DIRS})
+        PRIVATE "competitors/stx-btree-0.9/include") 
 
 target_link_libraries(benchmark
-        PRIVATE Threads::Threads dtl
-        PRIVATE ${Boost_LIBRARIES})
+        PRIVATE Threads::Threads dtl)
         
 target_link_libraries(benchmark
         PRIVATE ${CMAKE_THREAD_LIBS_INIT})

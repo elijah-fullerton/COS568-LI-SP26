@@ -1,0 +1,538 @@
+Milestone 2 changes and workflow
+================================
+
+Overview
+--------
+This file documents the Milestone 2 work completed in this repository for the
+naive hybrid DynamicPGM + LIPP approach, plus the exact workflow to build,
+benchmark, analyze, and write the required Milestone 2 report.
+
+This handoff is intentionally detailed so another coding agent can pick up from
+here and complete the entire milestone workflow on a cluster machine even if the
+local cloud environment is missing benchmark dependencies or datasets.
+
+
+Assignment scope recap
+----------------------
+The exact milestone requirement implemented here is:
+
+- Implement a hybrid DPGM + LIPP approach.
+- A naive implementation is acceptable.
+- Extracting data from DPGM and inserting it individually into LIPP is allowed.
+- Only the Facebook dataset needs to be reported for Milestone 2.
+- Compare mixed workload performance of:
+  - DynamicPGM
+  - LIPP
+  - HybridPGMLIPP
+- For DynamicPGM, sweep its existing hyperparameters and choose the
+  best-performing configuration for each workload.
+- Report throughput and index size for each workload.
+- Because there are two workloads and two metrics, the expected output is four
+  bar plots total:
+  1. Throughput for mixed 90 percent insert / 10 percent lookup
+  2. Throughput for mixed 10 percent insert / 90 percent lookup
+  3. Index size for mixed 90 percent insert / 10 percent lookup
+  4. Index size for mixed 10 percent insert / 90 percent lookup
+
+
+What was implemented
+--------------------
+1. New hybrid competitor wrapper:
+   - File: competitors/hybrid_pgm_lipp.h
+   - This implements a naive HybridPGMLIPP index.
+
+2. New benchmark entry points:
+   - File: benchmarks/benchmark_hybrid_pgm_lipp.h
+   - File: benchmarks/benchmark_hybrid_pgm_lipp.cc
+
+3. Benchmark executable registration:
+   - File: benchmark.cc
+   - Added support for --only HybridPGMLIPP
+
+4. Build integration:
+   - File: CMakeLists.txt
+   - File: scripts/create_minimal_cmake.sh
+   - Added benchmark_hybrid_pgm_lipp.cc to BENCH_SOURCES
+
+5. Milestone-2-specific benchmark runner:
+   - File: scripts/run_milestone2.sh
+   - Runs only the Facebook mixed workloads
+   - Runs only:
+     - LIPP
+     - DynamicPGM
+     - HybridPGMLIPP
+
+6. Milestone-2-specific analysis/report generation:
+   - File: scripts/analysis_milestone2.py
+   - Produces best-config tables
+   - Produces plot PNGs
+   - Produces a short markdown report
+
+7. Environment portability fixes for this cloud machine:
+   - File: benchmark.h
+   - File: searches/search.h
+   - File: dtl/adept.hpp
+   - Removed some Boost-only timing/aligned allocator assumptions so the project
+     is easier to build in environments that do not have the exact same Boost
+     installation as the original course environment.
+
+
+Naive hybrid design
+-------------------
+The hybrid implementation is intentionally simple, as allowed by Milestone 2.
+
+Design:
+- Initial bulk-loaded keys are loaded into LIPP.
+- New inserted keys are sent to a DynamicPGM buffer.
+- For lookups:
+  1. Probe DynamicPGM first.
+  2. If not found, probe LIPP.
+- For range query support:
+  - Combine LIPP range query result and DynamicPGM range query result.
+  - This is mostly for interface completeness; Milestone 2 uses mixed
+    insert/lookup workloads rather than range-query workloads.
+- For flushing:
+  - Once the DynamicPGM buffer reaches a threshold, iterate over the buffer
+    using DynamicPGM iterators.
+  - Insert each buffered key into LIPP one-by-one.
+  - Reset the DynamicPGM buffer by reconstructing it as empty.
+
+Important notes:
+- This is intentionally naive and synchronous.
+- There is no asynchronous migration.
+- There is no advanced double-buffering.
+- There is no attempt to outperform both baselines.
+- The design satisfies the "no keys left behind" requirement because keys are
+  not dropped; they remain either in the buffer or are inserted into LIPP.
+
+
+Files changed and purpose
+-------------------------
+1. competitors/hybrid_pgm_lipp.h
+   Purpose:
+   - Defines the HybridPGMLIPP competitor class
+   - Uses:
+     - Lipp<KeyType> as the primary bulk-loaded index
+     - DynamicPGMIndex<KeyType,...> as the insert buffer
+
+   Important methods:
+   - Build(...)
+     - Sorts data if needed
+     - Bulk-loads LIPP
+     - Resets DynamicPGM buffer
+   - EqualityLookup(...)
+     - Buffer first, then LIPP
+   - Insert(...)
+     - Inserts into buffer
+     - Flushes when threshold reached
+   - FlushBufferToLipp()
+     - Iterates over DynamicPGM entries
+     - Inserts each entry into LIPP one-by-one
+   - size()
+     - Returns LIPP size plus DynamicPGM buffer size in bytes
+
+2. benchmarks/benchmark_hybrid_pgm_lipp.h
+   Purpose:
+   - Declares benchmark_64_hybrid_pgm_lipp overloads
+
+3. benchmarks/benchmark_hybrid_pgm_lipp.cc
+   Purpose:
+   - Registers preset HybridPGMLIPP variants for Facebook mixed workloads
+   - Runs a few candidate combinations of:
+     - DPGM error bound
+     - flush threshold
+
+   Current preset variants:
+   - eps 64, flush 50000
+   - eps 128, flush 100000
+   - eps 512, flush 200000
+
+4. benchmark.cc
+   Purpose:
+   - Adds HybridPGMLIPP to the benchmark dispatch
+   - Supports:
+     --only HybridPGMLIPP
+
+5. CMakeLists.txt
+   Purpose:
+   - Includes the hybrid benchmark source in benchmark build
+   - Also adjusted for lower dependency assumptions in this environment
+
+6. scripts/create_minimal_cmake.sh
+   Purpose:
+   - Ensures the generated minimal CMake includes hybrid benchmark source too
+
+7. scripts/run_milestone2.sh
+   Purpose:
+   - Runs exactly the Milestone 2 Facebook mixed workloads
+   - Rewrites CSV header after benchmark generation
+
+8. scripts/analysis_milestone2.py
+   Purpose:
+   - Reads the two Facebook mixed workload result CSVs
+   - Computes average throughput across 3 repeats
+   - Selects the best row per index_name
+   - Writes:
+     - analysis_results/milestone2_all_configs.csv
+     - analysis_results/milestone2_best_configs.csv
+     - analysis_results/milestone2_summary_table.csv
+     - analysis_results/milestone2_throughput.png
+     - analysis_results/milestone2_index_size.png
+     - analysis_results/milestone2_report.md
+
+9. benchmark.h and searches/search.h
+   Purpose:
+   - Replaced Boost chrono timing with std::chrono to reduce build dependency
+
+10. dtl/adept.hpp
+    Purpose:
+    - Replaced Boost aligned allocator dependency with a local aligned allocator
+    - This was needed because the current cloud image lacks Boost headers
+
+
+Current repository state
+------------------------
+There are two categories of changes:
+
+1. Already committed and pushed:
+   - Initial hybrid benchmark pipeline implementation
+   - Commit:
+     ad31118 Add milestone 2 hybrid benchmark pipeline
+
+2. Currently modified after that commit:
+   - CMakeLists.txt
+   - benchmark.h
+   - dtl/adept.hpp
+   - scripts/create_minimal_cmake.sh
+   - searches/search.h
+   - competitors/hybrid_pgm_lipp.h
+
+These follow-up edits were made to improve build portability and fix compile
+issues exposed on this cloud machine.
+
+
+Local environment status
+------------------------
+Important:
+- The user explicitly said local execution is optional if the code can be run on
+  the Neuronic cluster.
+- Therefore cluster-readiness is sufficient.
+
+What happened locally:
+1. Initial build failed because the local environment used clang/c++ without the
+   expected libstdc++ linker setup.
+2. Switching to gcc/g++ exposed missing Boost dependencies.
+3. I removed or replaced multiple Boost dependencies used by the local build.
+4. After that, the build progressed much farther and reached the hybrid source.
+5. The remaining compile errors were in the hybrid wrapper itself, not the
+   environment.
+6. Those hybrid wrapper errors were then patched.
+
+Most recent local build status:
+- The benchmark build gets well into compilation and now the handoff should be
+  much closer to runnable.
+- If it still fails locally, the cluster run should be treated as the source of
+  truth.
+
+
+Known baseline Facebook results already present in repo
+-------------------------------------------------------
+These files already exist in results/ from prior work:
+
+1. results/fb_100M_public_uint64_ops_2M_0.000000rq_0.500000nl_0.900000i_0m_mix_results_table.csv
+2. results/fb_100M_public_uint64_ops_2M_0.000000rq_0.500000nl_0.100000i_0m_mix_results_table.csv
+
+They already contain baseline rows for LIPP and DynamicPGM.
+
+From those existing CSVs:
+
+Workload: mixed 90 percent insert
+- LIPP throughput runs:
+  1.43767, 2.59822, 2.4381
+  avg = 2.158 Mops/s
+- DynamicPGM candidate rows:
+  - BinarySearch, 512: 2.6883, 2.73171, 2.69562
+    avg = 2.705 Mops/s
+  - BinarySearch, 64: 2.7638, 2.7842, 2.68027
+    avg = 2.743 Mops/s
+  - BinarySearch, 128: 2.78605, 2.80024, 2.81138
+    avg = 2.799 Mops/s
+  -> Best existing DynamicPGM row for this workload:
+     BinarySearch, 128, avg 2.799 Mops/s
+
+Workload: mixed 10 percent insert
+- LIPP throughput runs:
+  9.90758, 14.1164, 16.44
+  avg = 13.488 Mops/s
+- DynamicPGM candidate rows:
+  - BinarySearch, 512: 0.762566, 0.771788, 0.764735
+    avg = 0.766 Mops/s
+  - BinarySearch, 64: 0.851096, 0.857036, 0.840285
+    avg = 0.849 Mops/s
+  - BinarySearch, 128: 0.821484, 0.832777, 0.816021
+    avg = 0.823 Mops/s
+  -> Best existing DynamicPGM row for this workload:
+     BinarySearch, 64, avg 0.849 Mops/s
+
+These are baseline-only values.
+The Milestone 2 hybrid rows still need to be generated on the cluster unless a
+local build/run succeeds.
+
+
+Exact workflow to finish Milestone 2 on cluster
+-----------------------------------------------
+Assume execution from repository root.
+
+0. Recommended environment
+--------------------------
+The README suggests:
+- Use Adroit or Della/cluster-style environment
+- Load Anaconda
+- Run benchmarks in a job rather than an interactive login node
+
+For Neuronic or a similar cluster, adapt the module commands as needed.
+
+Suggested shell setup:
+
+  module load anaconda3/2023.3
+  module load gcc
+  export CC=gcc
+  export CXX=g++
+
+If your cluster already has a working compiler toolchain configured by default,
+these exports may not be necessary.
+
+
+1. Pull latest branch
+---------------------
+  git fetch origin cursor/milestone-2-hybrid-approach-2e11
+  git checkout cursor/milestone-2-hybrid-approach-2e11
+  git pull origin cursor/milestone-2-hybrid-approach-2e11
+
+
+2. Confirm dataset/workload availability
+----------------------------------------
+If data is not present:
+  bash ./scripts/download_dataset.sh
+
+If workloads are not present:
+  bash ./scripts/generate_workloads.sh
+
+Expected Facebook workloads used for Milestone 2:
+- data/fb_100M_public_uint64
+- data/fb_100M_public_uint64_ops_2M_0.000000rq_0.500000nl_0.900000i_0m_mix
+- data/fb_100M_public_uint64_ops_2M_0.000000rq_0.500000nl_0.100000i_0m_mix
+
+
+3. Build benchmark
+------------------
+Preferred:
+  CC=gcc CXX=g++ bash ./scripts/build_benchmark.sh
+
+If the script still uses a cluster-unfriendly compiler path, run manually:
+  rm -rf build
+  cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++
+  cmake --build build --parallel "$(nproc)"
+
+Expected binaries:
+- build/benchmark
+- build/generate
+
+
+4. Run milestone 2 benchmarks
+-----------------------------
+Use the dedicated script:
+
+  BENCHMARK_REPEATS=3 bash ./scripts/run_milestone2.sh
+
+This should run:
+- LIPP on Facebook mixed 90 percent insert
+- LIPP on Facebook mixed 10 percent insert
+- DynamicPGM on Facebook mixed 90 percent insert
+- DynamicPGM on Facebook mixed 10 percent insert
+- HybridPGMLIPP on Facebook mixed 90 percent insert
+- HybridPGMLIPP on Facebook mixed 10 percent insert
+
+It should populate:
+- results/fb_100M_public_uint64_ops_2M_0.000000rq_0.500000nl_0.900000i_0m_mix_results_table.csv
+- results/fb_100M_public_uint64_ops_2M_0.000000rq_0.500000nl_0.100000i_0m_mix_results_table.csv
+
+
+5. Verify hybrid rows exist
+---------------------------
+Open both result CSVs and confirm there is at least one row where:
+- index_name == HybridPGMLIPP
+
+Expected format for mixed workload CSV:
+index_name,build_time_ns1,build_time_ns2,build_time_ns3,index_size_bytes,
+mixed_throughput_mops1,mixed_throughput_mops2,mixed_throughput_mops3,
+search_method,value
+
+The hybrid row should have:
+- index_name = HybridPGMLIPP
+- search_method = BranchingBinarySearch
+- value = something like eps128_flush100000
+
+
+6. Run milestone 2 analysis
+---------------------------
+  python3 scripts/analysis_milestone2.py
+
+Expected outputs:
+- analysis_results/milestone2_all_configs.csv
+- analysis_results/milestone2_best_configs.csv
+- analysis_results/milestone2_summary_table.csv
+- analysis_results/milestone2_throughput.png
+- analysis_results/milestone2_index_size.png
+- analysis_results/milestone2_report.md
+
+
+7. Interpret best rows
+----------------------
+The analysis script selects the best row per index_name based on average
+throughput across the 3 repeat runs.
+
+For DynamicPGM this is required by the assignment.
+For HybridPGMLIPP this is also useful because we provided several preset variants.
+
+The best_configs CSV should be treated as the source of truth for plotting and
+reporting.
+
+
+8. Produce the final concise milestone report
+---------------------------------------------
+Use analysis_results/milestone2_report.md as the starting point, but it may need
+minor edits to match your class report formatting.
+
+The report should contain:
+- 1 short intro paragraph
+- 1 short method paragraph describing the naive hybrid
+- 1 short result paragraph
+- The four required bar plots
+- A brief explanation of why the hybrid did or did not outperform baselines
+
+Recommended final report structure:
+
+Title:
+  Milestone 2: Naive Hybrid DynamicPGM + LIPP on Facebook
+
+Sections:
+1. Approach
+   - Initial keys in LIPP
+   - New inserts buffered in DynamicPGM
+   - Lookups check DynamicPGM first, then LIPP
+   - Flush from DynamicPGM to LIPP synchronously when threshold is reached
+
+2. Experimental setup
+   - Dataset: Facebook 100M uint64
+   - Workloads:
+     - mixed 90 percent insert / 10 percent lookup
+     - mixed 10 percent insert / 90 percent lookup
+   - Repeats: 3
+   - DynamicPGM hyperparameters: choose best per workload from benchmark rows
+
+3. Results
+   - Insert throughput figure
+   - Lookup-heavy figure
+   - Index-size figures
+
+4. Discussion
+   - LIPP likely remains strongest on lookup-heavy workload
+   - DynamicPGM likely remains strongest or near-strongest on insert-heavy workload
+   - Hybrid may fall between them because flushing is synchronous and inserts into
+     LIPP are done one-by-one
+
+
+What to do if run_milestone2.sh fails on cluster
+------------------------------------------------
+If the dedicated script fails, run the commands manually:
+
+For mixed 90 percent insert:
+  ./build/benchmark ./data/fb_100M_public_uint64 \
+    ./data/fb_100M_public_uint64_ops_2M_0.000000rq_0.500000nl_0.900000i_0m_mix \
+    --through --csv --only LIPP -r 3
+
+  ./build/benchmark ./data/fb_100M_public_uint64 \
+    ./data/fb_100M_public_uint64_ops_2M_0.000000rq_0.500000nl_0.900000i_0m_mix \
+    --through --csv --only DynamicPGM -r 3
+
+  ./build/benchmark ./data/fb_100M_public_uint64 \
+    ./data/fb_100M_public_uint64_ops_2M_0.000000rq_0.500000nl_0.900000i_0m_mix \
+    --through --csv --only HybridPGMLIPP -r 3
+
+For mixed 10 percent insert:
+  ./build/benchmark ./data/fb_100M_public_uint64 \
+    ./data/fb_100M_public_uint64_ops_2M_0.000000rq_0.500000nl_0.100000i_0m_mix \
+    --through --csv --only LIPP -r 3
+
+  ./build/benchmark ./data/fb_100M_public_uint64 \
+    ./data/fb_100M_public_uint64_ops_2M_0.000000rq_0.500000nl_0.100000i_0m_mix \
+    --through --csv --only DynamicPGM -r 3
+
+  ./build/benchmark ./data/fb_100M_public_uint64 \
+    ./data/fb_100M_public_uint64_ops_2M_0.000000rq_0.500000nl_0.100000i_0m_mix \
+    --through --csv --only HybridPGMLIPP -r 3
+
+Then restore the header manually if the CSV is missing it.
+
+
+How to manually compute averages if needed
+------------------------------------------
+For any row:
+  avg = (run1 + run2 + run3) / 3
+
+Examples from existing Facebook baseline files:
+
+DynamicPGM, mixed 90 percent insert, BinarySearch 128:
+  (2.78605 + 2.80024 + 2.81138) / 3 = 2.799223...
+
+LIPP, mixed 10 percent insert:
+  (9.90758 + 14.1164 + 16.44) / 3 = 13.487993...
+
+
+Expected hybrid behavior
+------------------------
+Do not expect the naive hybrid to beat both baselines.
+
+Why:
+- The hybrid pays two lookup checks in the worst case:
+  buffer, then LIPP
+- The flush is synchronous
+- The flush inserts buffered keys into LIPP one-by-one
+- LIPP does not support incremental bulk-loading into an already-populated index
+
+The hybrid is still valid for Milestone 2 because:
+- It combines DPGM and LIPP correctly
+- It preserves keys
+- It measures the required workloads
+- It provides reportable throughput and index-size comparisons
+
+
+Remaining recommended tasks for the next agent
+----------------------------------------------
+1. Finish local compile verification if desired.
+2. Run the Facebook mixed workload experiments on Neuronic/cluster.
+3. Confirm HybridPGMLIPP rows are present in both result CSVs.
+4. Run scripts/analysis_milestone2.py.
+5. Review milestone2_report.md and tighten wording for submission.
+6. Commit generated report helper file updates if desired.
+7. If benchmark/analysis scripts are further refined, update this handoff file.
+
+
+Deliverables expected after cluster execution
+---------------------------------------------
+At minimum, Milestone 2 should end with:
+- Updated results CSVs containing HybridPGMLIPP rows
+- analysis_results/milestone2_best_configs.csv
+- analysis_results/milestone2_summary_table.csv
+- analysis_results/milestone2_throughput.png
+- analysis_results/milestone2_index_size.png
+- analysis_results/milestone2_report.md
+- this milestone2_changes.txt file
+
+
+Bottom line
+-----------
+Yes, the milestone 2 hybrid implementation scaffolding is in place.
+The remaining work is primarily benchmark execution on a cluster environment
+with the Facebook dataset/workloads, followed by the final report polish.

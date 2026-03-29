@@ -11,7 +11,6 @@
 #include <regex>
 
 #include "util.h"
-#include <boost/chrono.hpp>
 
 #ifdef __linux__
 #define checkLinux(x) (x)
@@ -41,8 +40,8 @@ static void wipe_cache(){
 
 #define timing_end()                                                                                     \
   if constexpr (multithread){                                                                            \
-    const auto end_time = boost::chrono::thread_clock::now();                                            \
-    timing = boost::chrono::duration_cast<boost::chrono::nanoseconds>(end_time - thread_clock_start)     \
+    const auto end_time = std::chrono::steady_clock::now();                                              \
+    timing = std::chrono::duration_cast<std::chrono::nanoseconds>(end_time - thread_clock_start)         \
         .count();                                                                                        \
   } else {                                                                                               \
     const auto end_time = std::chrono::high_resolution_clock::now();                                     \
@@ -70,7 +69,7 @@ static void* DoOpsCoreLoop(void* param) {
   while (!util::running)
     ;
 
-  boost::chrono::thread_clock::time_point thread_clock_start;
+  std::chrono::steady_clock::time_point thread_clock_start;
   std::chrono::high_resolution_clock::time_point hr_clock_start;
   bool flag = false;
   for (size_t idx = start; idx < limit; ++idx) {
@@ -91,7 +90,7 @@ static void* DoOpsCoreLoop(void* param) {
     uint64_t timing = 0;
     if constexpr (time_each) {
       if constexpr (multithread){
-        thread_clock_start = boost::chrono::thread_clock::now();
+        thread_clock_start = std::chrono::steady_clock::now();
       }
       else{
         hr_clock_start = std::chrono::high_resolution_clock::now();

@@ -1,10 +1,11 @@
 #pragma once
 
-#include <iostream>
-#include <cstdint>
 #include <array>
-
-#include <boost/align/aligned_allocator.hpp>
+#include <cstdint>
+#include <cstdlib>
+#include <iostream>
+#include <limits>
+#include <new>
 
 
 // type aliases for more concise code
@@ -259,8 +260,61 @@ print(const std::vector<bool>& v) {
 
 namespace dtl {
 
+namespace detail {
+
+template<typename T, std::size_t Alignment>
+class aligned_allocator {
+ public:
+  using value_type = T;
+
+  aligned_allocator() noexcept = default;
+
+  template<typename U>
+  aligned_allocator(const aligned_allocator<U, Alignment>&) noexcept {}
+
+  [[nodiscard]] T* allocate(std::size_t n) {
+    if (n > std::numeric_limits<std::size_t>::max() / sizeof(T)) {
+      throw std::bad_array_new_length();
+    }
+
+    void* ptr = nullptr;
+    const std::size_t bytes = n * sizeof(T);
+    if (bytes == 0) {
+      return nullptr;
+    }
+
+    if (posix_memalign(&ptr, Alignment, bytes) != 0) {
+      throw std::bad_alloc();
+    }
+    return static_cast<T*>(ptr);
+  }
+
+  void deallocate(T* ptr, std::size_t) noexcept {
+    std::free(ptr);
+  }
+
+  template<typename U>
+  struct rebind {
+    using other = aligned_allocator<U, Alignment>;
+  };
+};
+
+template<typename T, typename U, std::size_t Alignment>
+bool operator==(const aligned_allocator<T, Alignment>&,
+                const aligned_allocator<U, Alignment>&) noexcept {
+  return true;
+}
+
+template<typename T, typename U, std::size_t Alignment>
+bool operator!=(const aligned_allocator<T, Alignment>& lhs,
+                const aligned_allocator<U, Alignment>& rhs) noexcept {
+  return !(lhs == rhs);
+}
+
+}  // namespace detail
+
 template<typename T, std::size_t A = 64>
-using aligned_vector = std::vector<T, boost::alignment::aligned_allocator<T, A>>;
+using aligned_vector = std::vector<T, detail::aligned_allocator<T, A>>;
 
 //template<typename T, std::size_t L>
 //using aligned_array = alignas(64) std::array<T, L>; //FIXME
