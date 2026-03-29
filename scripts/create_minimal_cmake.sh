@@ -9,6 +9,7 @@ fi
 
 if grep -q 'benchmarks/benchmark_dynamic_pgm.cc' CMakeLists.txt \
     && grep -q 'benchmarks/benchmark_lipp.cc' CMakeLists.txt \
+    && grep -q 'benchmarks/benchmark_hybrid_pgm_lipp.cc' CMakeLists.txt \
     && grep -q 'benchmarks/benchmark_btree.cc' CMakeLists.txt \
     && grep -q 'add_executable(generate generate.cc' CMakeLists.txt; then
     echo "CMakeLists.txt already contains the Task 1 minimal benchmark build."
@@ -57,6 +58,7 @@ set(BENCH_SOURCES
     "benchmarks/benchmark_dynamic_pgm.cc"
     "benchmarks/benchmark_pgm.cc"
     "benchmarks/benchmark_lipp.cc"
+    "benchmarks/benchmark_hybrid_pgm_lipp.cc"
     "benchmarks/benchmark_btree.cc")
 
 file(GLOB_RECURSE SEARCH_SOURCES "searches/*.h" "searches/search.cpp")
