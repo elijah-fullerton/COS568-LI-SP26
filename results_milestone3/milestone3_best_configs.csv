@@ -1,0 +1,19 @@
+dataset,dataset_label,workload,workload_label,index_name,avg_throughput_mops,std_throughput_mops,index_size_bytes,search_method,value
+books,Books,mixed_90_insert,"Mixed Throughput (90% Insert, 10% Lookup)",DynamicPGM,0.4055883333333334,0.0017283634520037106,1700011168,InterpolationSearch,256
+books,Books,mixed_90_insert,"Mixed Throughput (90% Insert, 10% Lookup)",LIPP,1.1791656666666668,0.36741117831509823,11753611888,,
+books,Books,mixed_90_insert,"Mixed Throughput (90% Insert, 10% Lookup)",HybridPGMLIPP,0.42762900000000004,0.02787779346839823,11750042232,strategy,BinarySearch-e64-t50-m131072-b16
+books,Books,mixed_10_insert,"Mixed Throughput (10% Insert, 90% Lookup)",DynamicPGM,0.157526,0.0003364798161356233,1700049908,InterpolationSearch,128
+books,Books,mixed_10_insert,"Mixed Throughput (10% Insert, 90% Lookup)",LIPP,3.0690233333333334,0.12096353647093643,11818525760,,
+books,Books,mixed_10_insert,"Mixed Throughput (10% Insert, 90% Lookup)",HybridPGMLIPP,0.41425766666666664,0.00016021929416341,11818401600,strategy,BinarySearch-e128-t50-m32768-b32
+fb,Facebook,mixed_90_insert,"Mixed Throughput (90% Insert, 10% Lookup)",DynamicPGM,0.3987696666666667,0.0008395730396391264,1705154448,BinarySearch,64
+fb,Facebook,mixed_90_insert,"Mixed Throughput (90% Insert, 10% Lookup)",LIPP,1.5644766666666667,0.07130281075962032,12656662928,,
+fb,Facebook,mixed_90_insert,"Mixed Throughput (90% Insert, 10% Lookup)",HybridPGMLIPP,0.4542563333333334,0.0015081300415488931,12650407672,strategy,ExponentialSearch-e128-t50-m131072-b16
+fb,Facebook,mixed_10_insert,"Mixed Throughput (10% Insert, 90% Lookup)",DynamicPGM,0.15593166666666666,0.0005558191152604303,1705226028,BinarySearch,64
+fb,Facebook,mixed_10_insert,"Mixed Throughput (10% Insert, 90% Lookup)",LIPP,2.796063333333334,0.20259939195916224,12700946864,,
+fb,Facebook,mixed_10_insert,"Mixed Throughput (10% Insert, 90% Lookup)",HybridPGMLIPP,0.44459,0.00946557397449657,12700725744,strategy,ExponentialSearch-e64-t25-m16384-b64
+osmc,OSMC,mixed_90_insert,"Mixed Throughput (90% Insert, 10% Lookup)",DynamicPGM,0.360231,0.002025024115082756,1700923408,BinarySearch,256
+osmc,OSMC,mixed_90_insert,"Mixed Throughput (90% Insert, 10% Lookup)",LIPP,1.090732,0.17507468507658858,20408967104,,
+osmc,OSMC,mixed_90_insert,"Mixed Throughput (90% Insert, 10% Lookup)",HybridPGMLIPP,0.40241299999999997,0.01787906207457951,20402463448,strategy,BinarySearch-e64-t50-m131072-b16
+osmc,OSMC,mixed_10_insert,"Mixed Throughput (10% Insert, 90% Lookup)",DynamicPGM,0.1490193333333333,0.00021989745084673314,1700920428,BinarySearch,256
+osmc,OSMC,mixed_10_insert,"Mixed Throughput (10% Insert, 90% Lookup)",LIPP,2.204446666666666,0.09140696557459706,20602887136,,
+osmc,OSMC,mixed_10_insert,"Mixed Throughput (10% Insert, 90% Lookup)",HybridPGMLIPP,0.4488303333333333,0.0013133637052325567,20602652576,strategy,ExponentialSearch-e64-t25-m16384-b64
