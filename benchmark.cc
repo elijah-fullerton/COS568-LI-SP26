@@ -7,6 +7,7 @@
 #include "benchmarks/benchmark_pgm.h"
 #include "benchmarks/benchmark_dynamic_pgm.h"
 #include "benchmarks/benchmark_lipp.h"
+#include "benchmarks/benchmark_hybrid_pgm_lipp.h"
 
 #include "searches/linear_search.h"
 #include "searches/linear_search_avx.h"
@@ -77,6 +78,7 @@ void execute_64_bit(tli::Benchmark<uint64_t>& benchmark, bool only_mode,
   check_only("BTree", benchmark_64_btree<record>(benchmark, filename));
   check_only("DynamicPGM", benchmark_64_dynamic_pgm<record>(benchmark, filename));
   check_only("LIPP", benchmark_64_lipp(benchmark));
+  check_only("HybridPGMLIPP", benchmark_64_hybrid_pgm_lipp<record>(benchmark, filename));
 }
 
 // We don't do string benchmarks in this minimal build

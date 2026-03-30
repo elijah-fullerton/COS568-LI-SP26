@@ -1,0 +1,7 @@
+workload,workload_label,index_name,avg_throughput_mops,std_throughput_mops,index_size_bytes,search_method,value
+mixed_90_insert,"Mixed Throughput (90% Insert, 10% Lookup)",DynamicPGM,2.800763333333333,0.03504765739516546,1702518268,BinarySearch,128.0
+mixed_90_insert,"Mixed Throughput (90% Insert, 10% Lookup)",LIPP,1.7570533333333334,0.4828871054627802,12656662928,,
+mixed_90_insert,"Mixed Throughput (90% Insert, 10% Lookup)",HybridPGMLIPP,1.9173866666666666,0.184541306186146,12603367236,flush_bps,100.0
+mixed_10_insert,"Mixed Throughput (10% Insert, 90% Lookup)",DynamicPGM,0.8197939999999999,0.016882683751899934,1705226028,BinarySearch,64.0
+mixed_10_insert,"Mixed Throughput (10% Insert, 90% Lookup)",LIPP,9.767666666666665,2.5798153157972803,12700946864,,
+mixed_10_insert,"Mixed Throughput (10% Insert, 90% Lookup)",HybridPGMLIPP,1.0265676666666665,0.08210695507013331,12687700704,flush_bps,50.0

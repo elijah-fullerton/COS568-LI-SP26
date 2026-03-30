@@ -529,8 +529,11 @@ class Benchmark {
 
   template <class Index>
   void PrintResultCSV(const Index* index) {
+    const char* results_dir_env = std::getenv("TLI_RESULTS_DIR");
+    const std::string results_dir =
+        results_dir_env == nullptr ? "./results" : results_dir_env;
     const std::string filename =
-        "./results/" + dataset_name_ + "_results_table.csv";
+        results_dir + "/" + dataset_name_ + "_results_table.csv";
 
     std::ofstream fout(filename, std::ofstream::out | std::ofstream::app);
 

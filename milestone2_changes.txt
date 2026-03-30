@@ -1,0 +1,51 @@
+Milestone 2 changes and run record
+Date: 2026-03-29
+
+Implementation changes
+- Added a new hybrid benchmark adapter in benchmarks/benchmark_hybrid_pgm_lipp.h and benchmarks/benchmark_hybrid_pgm_lipp.cc.
+- Added competitors/hybrid_pgm_lipp.h implementing a naive hybrid DPGM + LIPP index:
+  - Bulk-load initial keys into LIPP.
+  - Insert all new keys into DynamicPGM.
+  - On lookup, check DynamicPGM first, then LIPP.
+  - When the staged DynamicPGM size reaches a threshold, flush every staged key into LIPP with individual LIPP inserts, then reset the DynamicPGM buffer.
+- Registered HybridPGMLIPP in benchmark.cc and CMakeLists.txt.
+- Updated benchmark.h so CSV output can be redirected with TLI_RESULTS_DIR.
+- Patched competitors/PGM-index/include/pgm_index_dynamic.hpp:
+  - Fixed begin() iterator construction.
+  - Added for_each(...) so the hybrid can flush staged keys without auxiliary data structures.
+
+Milestone 2 scripts
+- Added scripts/run_milestone2.sh to run only the Facebook mixed workloads for DynamicPGM, LIPP, and HybridPGMLIPP with -r 3.
+- Added scripts/analysis_milestone2.py to:
+  - choose the best-performing configuration per index and workload,
+  - write milestone2_best_configs.csv,
+  - generate four bar plots,
+  - generate milestone2_report.md,
+  - generate milestone2_summary.png.
+- Added scripts/task2_job.slurm and scripts/submit_milestone2.sh for scratch execution.
+
+Correctness verification
+- Ran HybridPGMLIPP with --verify on:
+  - fb_100M_public_uint64_ops_2M_0.000000rq_0.500000nl_0.100000i_0m_mix
+  - fb_100M_public_uint64_ops_2M_0.000000rq_0.500000nl_0.900000i_0m_mix
+- An iterator-based flush initially failed verification on positive lookups. I replaced the flush path with DynamicPGMIndex::for_each(...) over live items, then re-ran verification successfully on both workloads.
+
+Scratch execution
+- Scratch workspace used: /scratch/network/ef0952/COS568-LI-SP26-milestone2
+- Data source linked from: /scratch/network/ef0952/COS568-LI-SP26/data
+- I attempted sbatch --wait scripts/task2_job.slurm first from the scratch workspace. Slurm returned immediate FAILED status with no usable stdout/stderr despite the job script itself being valid.
+- I then ran bash -x scripts/task2_job.slurm directly from the scratch workspace, which completed successfully and wrote all Milestone 2 outputs under the scratch results_milestone2 directory.
+
+Result locations
+- Local copy of Milestone 2 outputs: results_milestone2/
+- Scratch run outputs: /scratch/network/ef0952/COS568-LI-SP26-milestone2/results_milestone2/
+
+Best configurations from the final scratch run
+- Mixed 90% insert, 10% lookup:
+  - DynamicPGM: BinarySearch, epsilon 128, avg throughput 2.800763 Mops/s, index size 1702518268 bytes
+  - LIPP: avg throughput 1.757053 Mops/s, index size 12656662928 bytes
+  - HybridPGMLIPP: flush_bps 100, avg throughput 1.917387 Mops/s, index size 12603367236 bytes
+- Mixed 10% insert, 90% lookup:
+  - DynamicPGM: BinarySearch, epsilon 64, avg throughput 0.819794 Mops/s, index size 1705226028 bytes
+  - LIPP: avg throughput 9.767667 Mops/s, index size 12700946864 bytes
+  - HybridPGMLIPP: flush_bps 50, avg throughput 1.026568 Mops/s, index size 12687700704 bytes

@@ -446,8 +446,10 @@ public:
         for (; i < used_levels; ++i) {
             auto &level = get_level(i);
             for (auto it = level.begin(); it != level.end(); ++it)
-                if (!it->deleted())
-                    return iterator(this, it, i);
+                if (!it->deleted()) {
+                    std::vector<std::pair<typename LevelType::const_iterator, int16_t>> initial_pairs{};
+                    return iterator(this, it, i, initial_pairs);
+                }
         }
         return end();
     }
@@ -468,6 +470,17 @@ public:
      * @return number of elements with the given key, which is either 1 or 0.
      */
     size_t count(const K &key) const { return find(key) == end() ? 0 : 1; }
+
+    template<typename Fn>
+    void for_each(Fn &&fn) const {
+        for (uint8_t i = min_level; i < used_levels; ++i) {
+            const auto &level = get_level(i);
+            for (const auto &item : level) {
+                if (!item.deleted())
+                    fn(item.key(), item.value());
+            }
+        }
+    }
 
     /**
      * Returns the size of the container in bytes.
