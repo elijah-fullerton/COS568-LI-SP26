@@ -158,14 +158,19 @@ For each workload `w`:
 - `b_lipp[w]`: the best LIPP throughput from the latest baseline CSV for this
   workload
 - `delta[w] = h_cur[w] - h_best_prev[w]`
+- `ref[w] = max(h_best_prev[w], b_dpgm[w], b_lipp[w])`
+- `rel_delta[w] = delta[w] / ref[w]`
+- `norm_delta[w] = 8 * clamp(rel_delta[w], -0.5, 0.5)`
 
 Per-workload reward:
 
 - if `h_best_prev[w] >= b_dpgm[w]` and `h_best_prev[w] >= b_lipp[w]`, use
-  `min(0, delta[w])`
-- otherwise, use `delta[w]`
+  `min(0, norm_delta[w])`
+- otherwise, use `norm_delta[w]`
 
-Total reward is the sum over all six workloads.
+This makes the progress term scale with relative improvement instead of raw
+Mops/s deltas, so progress remains the dominant signal while still allowing the
+completion/novelty/efficiency shaping terms to matter.
 
 If the agent concludes an experiment without computing `h_cur` for all six
 workloads, use shaped partial reward rather than a catastrophic sentinel

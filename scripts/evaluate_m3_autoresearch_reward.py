@@ -12,6 +12,8 @@ PARTIAL_COMPLETION_WEIGHT = 2.0
 PARTIAL_MISSING_WEIGHT = 3.0
 NOVELTY_WEIGHT = 1.0
 SELF_EVAL_EFFICIENCY_BONUS = 0.25
+PROGRESS_SCALE = 8.0
+PER_WORKLOAD_RELATIVE_CAP = 0.5
 WORKLOADS: List[Tuple[str, str]] = [
     ("books", "0.100000i"),
     ("books", "0.900000i"),
@@ -233,15 +235,26 @@ def compute_reward(
         base = baselines[label]
         h_best_prev = previous_best.get(label, 0.0)
         delta = h_cur - h_best_prev
+        reference_scale = max(h_best_prev, base["DynamicPGM"], base["LIPP"], 1e-9)
+        relative_delta = delta / reference_scale
+        capped_relative_delta = max(
+            -PER_WORKLOAD_RELATIVE_CAP,
+            min(PER_WORKLOAD_RELATIVE_CAP, relative_delta),
+        )
+        normalized_delta = PROGRESS_SCALE * capped_relative_delta
         solved = h_best_prev >= base["DynamicPGM"] and h_best_prev >= base["LIPP"]
-        reward = min(0.0, delta) if solved else delta
+        reward = min(0.0, normalized_delta) if solved else normalized_delta
         progress_reward += reward
         details[label] = {
             "baseline_dpgm": base["DynamicPGM"],
             "baseline_lipp": base["LIPP"],
+            "capped_relative_delta": capped_relative_delta,
             "delta": delta,
             "h_best_prev": h_best_prev,
             "h_cur": h_cur,
+            "normalized_delta": normalized_delta,
+            "reference_scale": reference_scale,
+            "relative_delta": relative_delta,
             "reward": reward,
             "solved_before": 1.0 if solved else 0.0,
         }
