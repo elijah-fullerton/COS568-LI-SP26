@@ -71,6 +71,16 @@ def parse_args() -> argparse.Namespace:
         "--time-limit",
         default="04:00:00",
     )
+    parser.add_argument(
+        "--auto-commit-keeps",
+        action="store_true",
+        help="Create a git commit automatically for kept candidates.",
+    )
+    parser.add_argument(
+        "--commit-branch",
+        default="",
+        help="Optional branch to use for auto-committed kept candidates.",
+    )
     return parser.parse_args()
 
 
@@ -203,6 +213,20 @@ def promote_incumbent(repo_root: Path, stage_dir: Path, iteration: str, full_res
         shutil.rmtree(incumbent_results_dir)
     shutil.copytree(stage_dir, incumbent_dir)
     shutil.copytree(full_results_dir, incumbent_results_dir)
+
+
+def auto_commit_keep(repo_root: Path, iteration: str, reward: float, status: str, branch: str) -> None:
+    run(
+        [
+            "bash",
+            "scripts/commit_m3_kept_candidate.sh",
+            iteration,
+            f"{reward:.12g}",
+            status,
+            branch,
+        ],
+        cwd=repo_root,
+    )
 
 
 def restore_incumbent(repo_root: Path) -> None:
@@ -471,6 +495,14 @@ def main() -> None:
         if reward >= 0:
             promote_incumbent(repo_root, stage_dir, iteration, full_results_dir)
             loop_state["incumbent_iteration"] = iteration
+            if args.auto_commit_keeps:
+                auto_commit_keep(
+                    repo_root=repo_root,
+                    iteration=iteration,
+                    reward=reward,
+                    status=status,
+                    branch=args.commit_branch,
+                )
 
         loop_state["last_completed_iteration"] = iteration
         save_json(loop_state_path, loop_state)

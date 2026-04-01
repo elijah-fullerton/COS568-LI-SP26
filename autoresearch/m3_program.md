@@ -64,6 +64,9 @@ This stages the current candidate, submits the SLURM jobs, waits for completion,
 computes reward, updates the incumbent snapshot on `keep`, and records both
 preflight and full-run bookkeeping.
 
+If the loop is launched with auto-commit enabled, each kept candidate is also
+committed to git using only the Milestone 3 source files.
+
 ## Evaluation loop
 
 Always use a two-step loop.
@@ -166,6 +169,15 @@ To restore the incumbent code into the working tree:
 ```bash
 bash scripts/restore_m3_autoresearch_incumbent.sh
 ```
+
+## Auto-commit
+
+The unattended Codex launcher enables auto-commit for kept candidates by
+default. Those commits:
+
+- include only the Milestone 3 source files
+- skip runtime state, logs, SLURM output, and autoresearch bookkeeping files
+- are written to branch `autoresearch/m3-kept` unless overridden
 
 ## What counts as success
 

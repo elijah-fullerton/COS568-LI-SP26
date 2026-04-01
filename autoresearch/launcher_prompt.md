@@ -37,6 +37,9 @@ Codex CLI hook:
 bash scripts/run_m3_autoresearch_codex.sh
 ```
 
+By default this also auto-commits kept candidates to branch
+`autoresearch/m3-kept`.
+
 To keep it running after you disconnect from the terminal, prefer the tmux
 launcher:
 
