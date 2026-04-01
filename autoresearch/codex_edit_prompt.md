@@ -1,6 +1,6 @@
 # Milestone 3 Edit Prompt
 
-Work only in `/auto/u/ef0952/projects/COS568-LI-SP26`.
+Work only in the current repo checkout.
 
 You are responsible for exactly one bounded Milestone 3 candidate edit for the
 hybrid learned index. Do not run the benchmark submission scripts yourself. The
@@ -15,17 +15,19 @@ Before editing, read:
 - `autoresearch/loop_state.json`
 - `autoresearch/results.tsv`
 - `autoresearch/preflight.tsv`
+- `autoresearch/current_context.md`
+- `autoresearch/mutation_policy.json`
 
 If `autoresearch/incumbent_stage/` exists, treat it as the current accepted
 baseline. The outer loop may already have restored it into the working tree.
 
 Scope:
 
-- edit only the Milestone 3 implementation files described in
-  `autoresearch/m3_program.md`
+- edit only files allowed by `autoresearch/mutation_policy.json`
 - make one coherent improvement only
 - keep the parameter sweep small
 - choose the edit layer based on the blocker, not just the last file edited
+- choose one mutation family intentionally: implementation, screening, or measurement
 
 Do not:
 

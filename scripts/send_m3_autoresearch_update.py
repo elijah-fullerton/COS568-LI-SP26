@@ -34,12 +34,16 @@ WORKLOAD_LABELS = {
 }
 
 
+def repo_root_default() -> Path:
+    return Path(__file__).resolve().parents[1]
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--iteration", required=True)
     parser.add_argument(
         "--repo-root",
-        default="/auto/u/ef0952/projects/COS568-LI-SP26",
+        default=str(repo_root_default()),
     )
     parser.add_argument(
         "--results-dir",
@@ -204,8 +208,7 @@ def make_progress_figure(
     plt.close(fig)
 
 
-def read_last_experiment_summary(repo_root: Path) -> str:
-    path = repo_root / "autoresearch" / "last_codex_message.txt"
+def read_optional_text(path: Path) -> str:
     if not path.exists():
         return ""
     return path.read_text(encoding="ascii", errors="ignore").strip()
@@ -228,12 +231,25 @@ def solved_workloads(
     return len(solved), len(baselines), solved
 
 
+def git_current_branch(repo_root: Path) -> str:
+    result = subprocess.run(
+        ["git", "branch", "--show-current"],
+        cwd=repo_root,
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    return result.stdout.strip() or "detached"
+
+
 def compose_body(
     iteration: str,
+    branch: str,
     status: str,
     reward: float,
     change_summary: str,
     prior_experiment_summary: str,
+    context_summary: str,
     points: List[Tuple[int, str, float]],
     current_gap_sum: float,
     solved_count: int,
@@ -248,6 +264,7 @@ def compose_body(
     best_gap_text = "n/a" if best_gap != best_gap else f"{best_gap:.6f}"
     lines = [
         f"Iteration: {iteration}",
+        f"Branch: {branch}",
         f"Status: {status}",
         f"Reward: {reward:.12g}",
         f"Current gap sum: {current_gap_text}",
@@ -264,13 +281,15 @@ def compose_body(
         lines.extend(["", "Change summary:", change_summary])
     if prior_experiment_summary:
         lines.extend(["", "What we did in the prior experiment:", prior_experiment_summary])
+    if context_summary:
+        lines.extend(["", "Current context summary:", context_summary])
     lines.extend(
         [
             "",
             "Progress summary:",
             "- Lower gap sum is better.",
             "- The progress figure is attached.",
-            "- The y-axis is sum_w max(0, max(b1[w], b2[w]) - h_cur[w]).",
+            "- The email subject includes the branch to distinguish concurrent autoresearch loops.",
         ]
     )
     return "\n".join(lines) + "\n"
@@ -320,6 +339,7 @@ def send_mail(message: bytes) -> None:
 def main() -> None:
     args = parse_args()
     repo_root = Path(args.repo_root)
+    branch = git_current_branch(repo_root)
     autoresearch_dir = repo_root / "autoresearch"
     baseline_dir = repo_root / "results_milestone3"
     results_dir = Path(args.results_dir) if args.results_dir else Path("")
@@ -338,13 +358,16 @@ def main() -> None:
     figure_path = autoresearch_dir / "progress.png"
     make_progress_figure(figure_path, points, args.iteration)
 
-    prior_experiment_summary = read_last_experiment_summary(repo_root)
+    prior_experiment_summary = read_optional_text(autoresearch_dir / "last_codex_message.txt")
+    context_summary = read_optional_text(autoresearch_dir / "current_context.md")
     body = compose_body(
         iteration=args.iteration,
+        branch=branch,
         status=args.status,
         reward=args.reward,
         change_summary=args.change_summary,
         prior_experiment_summary=prior_experiment_summary,
+        context_summary=context_summary,
         points=points,
         current_gap_sum=current_gap_sum,
         solved_count=solved_count,
@@ -354,7 +377,7 @@ def main() -> None:
         full_job=args.full_job,
         full_notes=args.full_notes,
     )
-    subject = f"[LI-SP26 autoresearch] {args.iteration} {args.status} reward={args.reward:.6g}"
+    subject = f"[LI-SP26 autoresearch:{branch}] {args.iteration} {args.status} reward={args.reward:.6g}"
     message = build_mime_message(
         to_addr=to_addr,
         subject=subject,
@@ -365,12 +388,13 @@ def main() -> None:
     send_mail(message)
 
     log_entry = {
-        "sent_at_utc": datetime.now(timezone.utc).isoformat(),
+        "branch": branch,
         "iteration": args.iteration,
-        "status": args.status,
         "reward": args.reward,
-        "to": to_addr,
+        "sent_at_utc": datetime.now(timezone.utc).isoformat(),
+        "status": args.status,
         "subject": subject,
+        "to": to_addr,
     }
     with (autoresearch_dir / "email_log.jsonl").open("a", encoding="ascii") as handle:
         handle.write(json.dumps(log_entry, sort_keys=True) + "\n")

@@ -11,7 +11,8 @@ ITERATION="$1"
 REWARD="$2"
 STATUS="$3"
 BRANCH="${4:-}"
-REPO_ROOT="${REPO_ROOT:-/auto/u/ef0952/projects/COS568-LI-SP26}"
+SCRIPT_DIR="$(cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="${REPO_ROOT:-$(cd "${SCRIPT_DIR}/.." && pwd)}"
 
 FILES=(
   "benchmark.h"
@@ -21,6 +22,9 @@ FILES=(
   "competitors/hybrid_pgm_lipp.h"
   "competitors/PGM-index/include/pgm_index_dynamic.hpp"
   "competitors/lipp/src/core/lipp.h"
+  "scripts/run_m3_autoresearch_screen_compute.sh"
+  "scripts/run_m3_autoresearch_full_compute.sh"
+  "scripts/analysis_m3_screen.py"
 )
 
 cd "${REPO_ROOT}"

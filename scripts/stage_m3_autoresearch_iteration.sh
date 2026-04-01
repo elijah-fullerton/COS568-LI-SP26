@@ -8,7 +8,8 @@ if [[ $# -ne 1 ]]; then
 fi
 
 ITER_TAG="$1"
-REPO_ROOT="${REPO_ROOT:-/auto/u/ef0952/projects/COS568-LI-SP26}"
+SCRIPT_DIR="$(cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="${REPO_ROOT:-$(cd "${SCRIPT_DIR}/.." && pwd)}"
 STAGE_DIR="${STAGE_DIR:-${REPO_ROOT}/iterations/${ITER_TAG}_autoresearch_stage}"
 
 FILES=(
@@ -19,6 +20,9 @@ FILES=(
   "competitors/hybrid_pgm_lipp.h"
   "competitors/PGM-index/include/pgm_index_dynamic.hpp"
   "competitors/lipp/src/core/lipp.h"
+  "scripts/run_m3_autoresearch_screen_compute.sh"
+  "scripts/run_m3_autoresearch_full_compute.sh"
+  "scripts/analysis_m3_screen.py"
 )
 
 mkdir -p "${STAGE_DIR}"

@@ -2,7 +2,8 @@
 
 set -euo pipefail
 
-REPO_ROOT="${REPO_ROOT:-/auto/u/ef0952/projects/COS568-LI-SP26}"
+SCRIPT_DIR="$(cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="${REPO_ROOT:-$(cd "${SCRIPT_DIR}/.." && pwd)}"
 ITER_TAG="${ITER_TAG:?ITER_TAG must be set}"
 STAGE_DIR="${STAGE_DIR:?STAGE_DIR must be set}"
 ARCHIVE_ROOT="${ARCHIVE_ROOT:-${REPO_ROOT}/slurm_runs/${ITER_TAG}}"

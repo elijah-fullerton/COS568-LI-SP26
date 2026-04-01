@@ -7,7 +7,11 @@ from pathlib import Path
 from typing import Dict, List, Tuple
 
 
-PENALTY_INCOMPLETE = -1e18
+PENALTY_INCOMPLETE = -1000.0
+PARTIAL_COMPLETION_WEIGHT = 2.0
+PARTIAL_MISSING_WEIGHT = 3.0
+NOVELTY_WEIGHT = 1.0
+SELF_EVAL_EFFICIENCY_BONUS = 0.25
 WORKLOADS: List[Tuple[str, str]] = [
     ("books", "0.100000i"),
     ("books", "0.900000i"),
@@ -26,12 +30,16 @@ WORKLOAD_LABELS = {
 }
 
 
+def repo_root_default() -> Path:
+    return Path(__file__).resolve().parents[1]
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--iteration", required=True)
     parser.add_argument(
         "--repo-root",
-        default="/auto/u/ef0952/projects/COS568-LI-SP26",
+        default=str(repo_root_default()),
     )
     parser.add_argument(
         "--baseline-dir",
@@ -71,14 +79,18 @@ def parse_args() -> argparse.Namespace:
         default="",
     )
     parser.add_argument(
+        "--novelty-score",
+        type=float,
+        default=1.0,
+    )
+    parser.add_argument(
+        "--self-eval-abort",
+        action="store_true",
+    )
+    parser.add_argument(
         "--no-log",
         action="store_true",
         help="Compute reward without updating reward_state.json or results.tsv",
-    )
-    parser.add_argument(
-        "--force-penalty",
-        action="store_true",
-        help="Log the incomplete/crash penalty without requiring a results directory.",
     )
     return parser.parse_args()
 
@@ -98,7 +110,7 @@ def average_throughput(row: Dict[str, str]) -> float:
     ]
     vals = [float(row[c]) for c in cols if row.get(c, "") != ""]
     if not vals:
-      raise ValueError("No mixed throughput columns found")
+        raise ValueError("No mixed throughput columns found")
     return sum(vals) / len(vals)
 
 
@@ -181,6 +193,8 @@ def current_hybrid_throughputs(results_dir: Path) -> Dict[str, float]:
     current: Dict[str, float] = {}
     for dataset_prefix, workload_token in WORKLOADS:
         path = results_dir / csv_name(dataset_prefix, workload_token)
+        if not path.exists():
+            continue
         rows = load_csv_rows(path)
         best_hybrid = None
         for row in rows:
@@ -191,16 +205,6 @@ def current_hybrid_throughputs(results_dir: Path) -> Dict[str, float]:
         if best_hybrid is not None:
             current[WORKLOAD_LABELS[(dataset_prefix, workload_token)]] = best_hybrid
     return current
-
-
-def penalty_output(iteration: str, results_dir: Path, error: str) -> Dict[str, object]:
-    return {
-        "iteration": iteration,
-        "reward": PENALTY_INCOMPLETE,
-        "results_dir": str(results_dir),
-        "details": {},
-        "error": error,
-    }
 
 
 def load_reward_state(state_path: Path) -> Dict[str, Dict[str, float]]:
@@ -217,29 +221,46 @@ def compute_reward(
     baselines: Dict[str, Dict[str, float]],
     previous_best: Dict[str, float],
     current: Dict[str, float],
-) -> Tuple[float, Dict[str, Dict[str, float]]]:
+    novelty_score: float,
+    self_eval_abort: bool,
+) -> Tuple[float, Dict[str, Dict[str, float]], Dict[str, float]]:
     details: Dict[str, Dict[str, float]] = {}
-    if any(label not in current for label in baselines):
-        return PENALTY_INCOMPLETE, details
+    if not current:
+        return PENALTY_INCOMPLETE, details, {"completion_ratio": 0.0}
 
-    total = 0.0
-    for label, base in baselines.items():
+    progress_reward = 0.0
+    for label, h_cur in current.items():
+        base = baselines[label]
         h_best_prev = previous_best.get(label, 0.0)
-        h_cur = current[label]
         delta = h_cur - h_best_prev
         solved = h_best_prev >= base["DynamicPGM"] and h_best_prev >= base["LIPP"]
         reward = min(0.0, delta) if solved else delta
-        total += reward
+        progress_reward += reward
         details[label] = {
-            "h_best_prev": h_best_prev,
-            "h_cur": h_cur,
             "baseline_dpgm": base["DynamicPGM"],
             "baseline_lipp": base["LIPP"],
             "delta": delta,
+            "h_best_prev": h_best_prev,
+            "h_cur": h_cur,
             "reward": reward,
             "solved_before": 1.0 if solved else 0.0,
         }
-    return total, details
+
+    completion_ratio = len(current) / len(baselines)
+    completion_bonus = PARTIAL_COMPLETION_WEIGHT * completion_ratio
+    missing_penalty = 0.0 if completion_ratio == 1.0 else PARTIAL_MISSING_WEIGHT * (1.0 - completion_ratio)
+    novelty_bonus = NOVELTY_WEIGHT * (novelty_score - 0.5)
+    efficiency_bonus = SELF_EVAL_EFFICIENCY_BONUS if self_eval_abort and current else 0.0
+    total = progress_reward + completion_bonus - missing_penalty + novelty_bonus + efficiency_bonus
+    components = {
+        "completion_bonus": completion_bonus,
+        "completion_ratio": completion_ratio,
+        "efficiency_bonus": efficiency_bonus,
+        "missing_penalty": missing_penalty,
+        "novelty_bonus": novelty_bonus,
+        "progress_reward": progress_reward,
+    }
+    return total, details, components
 
 
 def append_results_row(
@@ -279,33 +300,6 @@ def main() -> None:
     state_path = reward_dir / "reward_state.json"
     results_tsv_path = reward_dir / "results.tsv"
 
-    if args.force_penalty:
-        results_dir = Path(args.results_dir) if args.results_dir else Path("")
-        reward = PENALTY_INCOMPLETE
-        details = {}
-        output = {
-            "iteration": args.iteration,
-            "reward": reward,
-            "results_dir": str(results_dir),
-            "details": details,
-        }
-        print(json.dumps(output, indent=2, sort_keys=True))
-        if args.no_log:
-            return
-        append_results_row(
-            results_tsv_path=results_tsv_path,
-            iteration=args.iteration,
-            status="crash",
-            reward=reward,
-            screen_job=args.screen_job,
-            full_job=args.full_job,
-            results_dir=results_dir,
-            change_summary=args.change_summary,
-            screen_notes=args.screen_notes,
-            full_notes=args.full_notes,
-        )
-        return
-
     if args.results_dir:
         results_dir = Path(args.results_dir)
     else:
@@ -316,26 +310,40 @@ def main() -> None:
         state = load_reward_state(state_path)
         previous_best = state["best_hybrid_throughput"]
         current = current_hybrid_throughputs(results_dir)
-        reward, details = compute_reward(baselines, previous_best, current)
+        reward, details, components = compute_reward(
+            baselines,
+            previous_best,
+            current,
+            args.novelty_score,
+            args.self_eval_abort,
+        )
         output = {
-            "iteration": args.iteration,
-            "reward": reward,
-            "results_dir": str(results_dir),
+            "components": components,
             "details": details,
+            "iteration": args.iteration,
+            "results_dir": str(results_dir),
+            "reward": reward,
         }
     except (FileNotFoundError, KeyError, ValueError, OSError) as exc:
         reward = PENALTY_INCOMPLETE
         current = {}
         previous_best = {}
         state = {"best_hybrid_throughput": {}}
-        output = penalty_output(args.iteration, results_dir, str(exc))
+        output = {
+            "components": {"completion_ratio": 0.0},
+            "details": {},
+            "error": str(exc),
+            "iteration": args.iteration,
+            "results_dir": str(results_dir),
+            "reward": reward,
+        }
 
     print(json.dumps(output, indent=2, sort_keys=True))
 
     if args.no_log:
         return
 
-    if reward != PENALTY_INCOMPLETE:
+    if reward != PENALTY_INCOMPLETE and len(current) == len(WORKLOADS):
         for label, h_cur in current.items():
             prev = previous_best.get(label, 0.0)
             if h_cur > prev:
@@ -348,7 +356,7 @@ def main() -> None:
     append_results_row(
         results_tsv_path=results_tsv_path,
         iteration=args.iteration,
-        status=args.status if reward != PENALTY_INCOMPLETE else "crash",
+        status=args.status,
         reward=reward,
         screen_job=args.screen_job,
         full_job=args.full_job,

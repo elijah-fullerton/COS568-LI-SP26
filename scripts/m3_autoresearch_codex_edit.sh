@@ -2,7 +2,8 @@
 
 set -euo pipefail
 
-REPO_ROOT="${REPO_ROOT:-/auto/u/ef0952/projects/COS568-LI-SP26}"
+SCRIPT_DIR="$(cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="${REPO_ROOT:-$(cd "${SCRIPT_DIR}/.." && pwd)}"
 PROMPT_FILE="${PROMPT_FILE:-${REPO_ROOT}/autoresearch/codex_edit_prompt.md}"
 MODEL="${MODEL:-gpt-5.4}"
 OUTPUT_FILE="${OUTPUT_FILE:-${REPO_ROOT}/autoresearch/last_codex_message.txt}"

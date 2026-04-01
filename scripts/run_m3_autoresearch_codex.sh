@@ -2,7 +2,8 @@
 
 set -euo pipefail
 
-REPO_ROOT="${REPO_ROOT:-/auto/u/ef0952/projects/COS568-LI-SP26}"
+SCRIPT_DIR="$(cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="${REPO_ROOT:-$(cd "${SCRIPT_DIR}/.." && pwd)}"
 ITERATIONS="${ITERATIONS:-0}"
 PROMOTE_SCREEN="${PROMOTE_SCREEN:-always}"
 CPUS="${CPUS:-8}"
@@ -11,7 +12,7 @@ TIME_LIMIT="${TIME_LIMIT:-04:00:00}"
 MODEL="${MODEL:-gpt-5.4}"
 SLEEP_SECONDS="${SLEEP_SECONDS:-0}"
 AUTO_COMMIT_KEEPS="${AUTO_COMMIT_KEEPS:-1}"
-COMMIT_BRANCH="${COMMIT_BRANCH:-autoresearch/m3-kept}"
+COMMIT_BRANCH="${COMMIT_BRANCH:-autoresearch-rl}"
 
 cd "${REPO_ROOT}"
 

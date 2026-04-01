@@ -2,7 +2,8 @@
 
 set -euo pipefail
 
-REPO_ROOT="${REPO_ROOT:-/auto/u/ef0952/projects/COS568-LI-SP26}"
+SCRIPT_DIR="$(cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="${REPO_ROOT:-$(cd "${SCRIPT_DIR}/.." && pwd)}"
 INCUMBENT_DIR="${INCUMBENT_DIR:-${REPO_ROOT}/autoresearch/incumbent_stage}"
 
 if [[ ! -d "${INCUMBENT_DIR}" ]]; then

@@ -2,6 +2,7 @@
 
 import argparse
 import csv
+import hashlib
 import json
 import os
 import shlex
@@ -10,18 +11,59 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 
-PENALTY_INCOMPLETE = -1e18
+PENALTY_INCOMPLETE = -1000.0
 STATE_POLL_SECONDS = 30
+ABORT_EXIT_CODE = 42
+DEFAULT_EDITABLE_PATHS = [
+    "benchmark.h",
+    "util.h",
+    "benchmarks/benchmark_hybrid_pgm_lipp.cc",
+    "benchmarks/benchmark_hybrid_pgm_lipp.h",
+    "competitors/hybrid_pgm_lipp.h",
+    "competitors/PGM-index/include/pgm_index_dynamic.hpp",
+    "competitors/lipp/src/core/lipp.h",
+    "scripts/run_m3_autoresearch_screen_compute.sh",
+    "scripts/run_m3_autoresearch_full_compute.sh",
+    "scripts/analysis_m3_screen.py",
+]
+DEFAULT_MUTATION_FAMILIES = {
+    "implementation": {
+        "benchmark.h",
+        "util.h",
+        "benchmarks/benchmark_hybrid_pgm_lipp.cc",
+        "benchmarks/benchmark_hybrid_pgm_lipp.h",
+        "competitors/hybrid_pgm_lipp.h",
+        "competitors/PGM-index/include/pgm_index_dynamic.hpp",
+        "competitors/lipp/src/core/lipp.h",
+    },
+    "screening": {
+        "benchmarks/benchmark_hybrid_pgm_lipp.cc",
+        "benchmarks/benchmark_hybrid_pgm_lipp.h",
+        "scripts/run_m3_autoresearch_screen_compute.sh",
+        "scripts/analysis_m3_screen.py",
+    },
+    "measurement": {
+        "benchmark.h",
+        "util.h",
+        "scripts/run_m3_autoresearch_screen_compute.sh",
+        "scripts/run_m3_autoresearch_full_compute.sh",
+        "scripts/analysis_m3_screen.py",
+    },
+}
+
+
+def repo_root_default() -> Path:
+    return Path(__file__).resolve().parents[1]
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--repo-root",
-        default="/auto/u/ef0952/projects/COS568-LI-SP26",
+        default=str(repo_root_default()),
     )
     parser.add_argument(
         "--iterations",
@@ -90,13 +132,14 @@ def run(
     cwd: Path,
     env: Optional[Dict[str, str]] = None,
     capture_output: bool = False,
+    check: bool = True,
 ) -> subprocess.CompletedProcess:
     return subprocess.run(
         cmd,
         cwd=str(cwd),
         env=env,
         text=True,
-        check=True,
+        check=check,
         capture_output=capture_output,
     )
 
@@ -116,9 +159,18 @@ def save_json(path: Path, data) -> None:
 
 def update_status(repo_root: Path) -> None:
     run(
-        ["python3", "scripts/update_m3_autoresearch_status.py"],
+        ["python3", "scripts/update_m3_autoresearch_status.py", "--repo-root", str(repo_root)],
         cwd=repo_root,
     )
+
+
+def git_current_branch(repo_root: Path) -> str:
+    result = run(
+        ["git", "branch", "--show-current"],
+        cwd=repo_root,
+        capture_output=True,
+    )
+    return result.stdout.strip() or "detached"
 
 
 def next_iteration_tag(iterations_dir: Path) -> str:
@@ -231,7 +283,7 @@ def append_preflight(
         )
 
 
-def promote_incumbent(repo_root: Path, stage_dir: Path, iteration: str, full_results_dir: Path) -> None:
+def promote_incumbent(repo_root: Path, stage_dir: Path, full_results_dir: Path) -> None:
     incumbent_dir = repo_root / "autoresearch" / "incumbent_stage"
     incumbent_results_dir = repo_root / "autoresearch" / "incumbent_results"
     if incumbent_dir.exists():
@@ -269,40 +321,47 @@ def restore_incumbent(repo_root: Path) -> None:
 def evaluate_reward(
     repo_root: Path,
     iteration: str,
-    full_results_dir: Path,
+    results_dir: Path,
     screen_job: str,
     full_job: str,
     status: str,
     change_summary: str,
     screen_notes: str,
     full_notes: str,
-) -> float:
-    output = run(
-        [
-            "python3",
-            "scripts/evaluate_m3_autoresearch_reward.py",
-            "--iteration",
-            iteration,
-            "--results-dir",
-            str(full_results_dir),
-            "--screen-job",
-            screen_job,
-            "--full-job",
-            full_job,
-            "--status",
-            status,
-            "--change-summary",
-            change_summary,
-            "--screen-notes",
-            screen_notes,
-            "--full-notes",
-            full_notes,
-        ],
-        cwd=repo_root,
-        capture_output=True,
-    )
-    payload = json.loads(output.stdout)
-    return float(payload["reward"])
+    novelty_score: float,
+    self_eval_abort: bool,
+    no_log: bool = False,
+) -> Dict[str, Any]:
+    cmd = [
+        "python3",
+        "scripts/evaluate_m3_autoresearch_reward.py",
+        "--repo-root",
+        str(repo_root),
+        "--iteration",
+        iteration,
+        "--results-dir",
+        str(results_dir),
+        "--screen-job",
+        screen_job,
+        "--full-job",
+        full_job,
+        "--status",
+        status,
+        "--change-summary",
+        change_summary,
+        "--screen-notes",
+        screen_notes,
+        "--full-notes",
+        full_notes,
+        "--novelty-score",
+        f"{novelty_score:.12g}",
+    ]
+    if self_eval_abort:
+        cmd.append("--self-eval-abort")
+    if no_log:
+        cmd.append("--no-log")
+    output = run(cmd, cwd=repo_root, capture_output=True)
+    return json.loads(output.stdout)
 
 
 def send_update_email(
@@ -316,12 +375,14 @@ def send_update_email(
     full_notes: str,
     change_summary: str,
 ) -> None:
-    reward_arg = format(reward, ".12f") if reward == PENALTY_INCOMPLETE else format(reward, ".12g")
+    reward_arg = format(reward, ".12g")
     try:
         run(
             [
                 "python3",
                 "scripts/send_m3_autoresearch_update.py",
+                "--repo-root",
+                str(repo_root),
                 "--iteration",
                 iteration,
                 "--results-dir",
@@ -370,40 +431,6 @@ def send_screen_failure_email(
     )
 
 
-def log_forced_penalty(
-    repo_root: Path,
-    iteration: str,
-    screen_job: str,
-    full_job: str,
-    status: str,
-    change_summary: str,
-    screen_notes: str,
-    full_notes: str,
-) -> None:
-    run(
-        [
-            "python3",
-            "scripts/evaluate_m3_autoresearch_reward.py",
-            "--iteration",
-            iteration,
-            "--force-penalty",
-            "--screen-job",
-            screen_job,
-            "--full-job",
-            full_job,
-            "--status",
-            status,
-            "--change-summary",
-            change_summary,
-            "--screen-notes",
-            screen_notes,
-            "--full-notes",
-            full_notes,
-        ],
-        cwd=repo_root,
-    )
-
-
 def maybe_run_edit_command(repo_root: Path, edit_command: str) -> None:
     if not edit_command:
         return
@@ -421,7 +448,162 @@ def classify_screen_outcome(screen_rc: Optional[int], result_count: int) -> str:
         return "screen_success" if result_count > 0 else "screen_completed_no_result"
     if screen_rc == 124:
         return "screen_timeout_partial" if result_count > 0 else "screen_timeout_no_result"
+    if screen_rc == ABORT_EXIT_CODE:
+        return "screen_self_eval_abort"
     return "screen_failure_partial" if result_count > 0 else "screen_failure_no_result"
+
+
+def load_mutation_policy(repo_root: Path) -> Dict[str, Any]:
+    policy_path = repo_root / "autoresearch" / "mutation_policy.json"
+    if not policy_path.exists():
+        return {
+            "editable_paths": DEFAULT_EDITABLE_PATHS,
+            "mutation_families": {k: sorted(v) for k, v in DEFAULT_MUTATION_FAMILIES.items()},
+        }
+    return load_json(policy_path, {})
+
+
+def tracked_changes(repo_root: Path) -> set[str]:
+    result = run(
+        ["git", "diff", "--name-only"],
+        cwd=repo_root,
+        capture_output=True,
+    )
+    return {line.strip() for line in result.stdout.splitlines() if line.strip()}
+
+
+def newly_touched_disallowed_paths(
+    before: set[str],
+    after: set[str],
+    allowed_paths: List[str],
+) -> List[str]:
+    allowed = tuple(allowed_paths)
+    disallowed = []
+    for relpath in sorted(after - before):
+        if relpath.startswith("autoresearch/") or relpath.startswith("iterations/"):
+            continue
+        if relpath in allowed:
+            continue
+        disallowed.append(relpath)
+    return disallowed
+
+
+def diff_numstat(repo_root: Path, relpaths: List[str]) -> Tuple[int, int]:
+    if not relpaths:
+        return 0, 0
+    result = run(
+        ["git", "diff", "--numstat", "--", *relpaths],
+        cwd=repo_root,
+        capture_output=True,
+    )
+    added = 0
+    deleted = 0
+    for line in result.stdout.splitlines():
+        parts = line.split("\t")
+        if len(parts) < 3:
+            continue
+        try:
+            added += int(parts[0])
+            deleted += int(parts[1])
+        except ValueError:
+            continue
+    return added, deleted
+
+
+def current_candidate_files(repo_root: Path, editable_paths: List[str]) -> List[str]:
+    changed = tracked_changes(repo_root)
+    return [path for path in editable_paths if path in changed]
+
+
+def classify_mutation_family(changed_files: List[str], families: Dict[str, List[str]]) -> str:
+    if not changed_files:
+        return "no_change"
+    scores = []
+    changed = set(changed_files)
+    for family, relpaths in families.items():
+        overlap = len(changed & set(relpaths))
+        scores.append((overlap, family))
+    scores.sort(reverse=True)
+    if len(scores) >= 2 and scores[0][0] == scores[1][0] and scores[0][0] > 0:
+        return "mixed"
+    if scores and scores[0][0] > 0:
+        return scores[0][1]
+    return "mixed"
+
+
+def compute_stage_fingerprint(stage_dir: Path) -> str:
+    digest = hashlib.sha256()
+    for path in sorted(stage_dir.rglob("*")):
+        if not path.is_file() or path.name == "MANIFEST.txt":
+            continue
+        digest.update(str(path.relative_to(stage_dir)).encode("ascii"))
+        digest.update(path.read_bytes())
+    return digest.hexdigest()
+
+
+def load_trajectory(trajectory_path: Path) -> List[Dict[str, Any]]:
+    if not trajectory_path.exists():
+        return []
+    entries = []
+    for line in trajectory_path.read_text(encoding="ascii").splitlines():
+        if not line.strip():
+            continue
+        entries.append(json.loads(line))
+    return entries
+
+
+def assess_novelty(
+    trajectory: List[Dict[str, Any]],
+    fingerprint: str,
+    changed_files: List[str],
+    mutation_family: str,
+) -> Dict[str, Any]:
+    duplicate_iteration = ""
+    novelty_score = 1.0
+    changed_set = set(changed_files)
+    for entry in reversed(trajectory):
+        candidate = entry.get("candidate", {})
+        if candidate.get("file_fingerprint") == fingerprint:
+            duplicate_iteration = entry.get("iteration", "")
+            novelty_score = 0.0
+            break
+        prior_files = set(candidate.get("changed_files", []))
+        if prior_files == changed_set and candidate.get("mutation_family") == mutation_family:
+            duplicate_iteration = entry.get("iteration", "")
+            novelty_score = 0.35
+            break
+    return {
+        "novelty_score": novelty_score,
+        "duplicate_iteration": duplicate_iteration,
+    }
+
+
+def append_trajectory_entry(path: Path, entry: Dict[str, Any]) -> None:
+    with path.open("a", encoding="ascii") as handle:
+        handle.write(json.dumps(entry, sort_keys=True) + "\n")
+
+
+def run_self_evaluator(repo_root: Path, results_dir: Path, mode: str) -> Tuple[int, Dict[str, Any]]:
+    cmd = [
+        "python3",
+        "scripts/self_evaluate_m3_candidate.py",
+        "--repo-root",
+        str(repo_root),
+        "--results-dir",
+        str(results_dir),
+        "--mode",
+        mode,
+    ]
+    result = run(cmd, cwd=repo_root, capture_output=True, check=False)
+    payload = {}
+    if result.stdout.strip():
+        payload = json.loads(result.stdout)
+    return result.returncode, payload
+
+
+def update_loop_state(loop_state_path: Path, loop_state: Dict[str, Any], **updates: Any) -> None:
+    loop_state.update(updates)
+    save_json(loop_state_path, loop_state)
 
 
 def main() -> None:
@@ -431,33 +613,95 @@ def main() -> None:
     iterations_dir = repo_root / "iterations"
     loop_state_path = autoresearch_dir / "loop_state.json"
     preflight_path = autoresearch_dir / "preflight.tsv"
+    trajectory_path = autoresearch_dir / "trajectory.jsonl"
+    branch = git_current_branch(repo_root)
+    policy = load_mutation_policy(repo_root)
+    editable_paths = policy.get("editable_paths", DEFAULT_EDITABLE_PATHS)
+    mutation_families = policy.get(
+        "mutation_families",
+        {k: sorted(v) for k, v in DEFAULT_MUTATION_FAMILIES.items()},
+    )
 
     loop_state = load_json(
         loop_state_path,
         {
+            "active_branch": branch,
+            "active_full_job": "",
+            "active_iteration": "",
+            "active_phase": "idle",
+            "active_screen_job": "",
             "incumbent_iteration": "",
             "last_completed_iteration": "",
             "last_full_job": "",
             "last_screen_job": "",
+            "last_self_eval_decision": "",
+            "repo_root": str(repo_root),
         },
+    )
+    update_loop_state(
+        loop_state_path,
+        loop_state,
+        active_branch=branch,
+        active_phase="idle",
+        repo_root=str(repo_root),
     )
 
     iteration_count = 0
     while args.iterations == 0 or iteration_count < args.iterations:
+        trajectory = load_trajectory(trajectory_path)
         update_status(repo_root)
+        before_changes = tracked_changes(repo_root)
         if args.restore_incumbent_before_edit:
             restore_incumbent(repo_root)
+        before_changes = tracked_changes(repo_root)
 
+        update_loop_state(
+            loop_state_path,
+            loop_state,
+            active_iteration="pending",
+            active_phase="editing",
+            active_screen_job="",
+            active_full_job="",
+        )
         maybe_run_edit_command(repo_root, args.edit_command)
+
+        after_changes = tracked_changes(repo_root)
+        disallowed_paths = newly_touched_disallowed_paths(before_changes, after_changes, editable_paths)
+        if disallowed_paths:
+            raise RuntimeError(
+                "Edit command touched files outside the allowed mutation policy: "
+                + ", ".join(disallowed_paths)
+            )
 
         iteration = next_iteration_tag(iterations_dir)
         stage_dir = iterations_dir / f"{iteration}_autoresearch_stage"
         archive_root = repo_root / "slurm_runs" / iteration
+        update_loop_state(
+            loop_state_path,
+            loop_state,
+            active_iteration=iteration,
+            active_phase="staging",
+        )
 
         run(
             ["bash", "scripts/stage_m3_autoresearch_iteration.sh", iteration],
             cwd=repo_root,
         )
+
+        changed_files = current_candidate_files(repo_root, editable_paths)
+        mutation_family = classify_mutation_family(changed_files, mutation_families)
+        added_lines, deleted_lines = diff_numstat(repo_root, changed_files)
+        file_fingerprint = compute_stage_fingerprint(stage_dir)
+        novelty = assess_novelty(trajectory, file_fingerprint, changed_files, mutation_family)
+        candidate_metadata = {
+            "added_lines": added_lines,
+            "changed_files": changed_files,
+            "deleted_lines": deleted_lines,
+            "duplicate_iteration": novelty["duplicate_iteration"],
+            "file_fingerprint": file_fingerprint,
+            "mutation_family": mutation_family,
+            "novelty_score": novelty["novelty_score"],
+        }
 
         screen_job = submit_job(
             repo_root,
@@ -467,14 +711,28 @@ def main() -> None:
             args.memory,
             args.time_limit,
         )
-        loop_state["last_screen_job"] = screen_job
-        save_json(loop_state_path, loop_state)
+        update_loop_state(
+            loop_state_path,
+            loop_state,
+            active_phase="screen",
+            active_screen_job=screen_job,
+            last_screen_job=screen_job,
+        )
 
         screen_state, screen_rc = poll_job(screen_job, archive_root)
         screen_results_dir = latest_results_dir(archive_root)
         result_count = inspect_benchmark_output(archive_root, screen_job)
-        failure_class = classify_screen_outcome(screen_rc, result_count)
+        self_eval_payload: Dict[str, Any] = {}
+        self_eval_rc = 0
+        if screen_rc == 0 and screen_results_dir is not None:
+            self_eval_rc, self_eval_payload = run_self_evaluator(repo_root, screen_results_dir, "screen")
+        failure_class = classify_screen_outcome(screen_rc if self_eval_rc == 0 else self_eval_rc, result_count)
         screen_notes = args.screen_notes or f"screen_state={screen_state},screen_rc={screen_rc}"
+        if self_eval_payload:
+            screen_notes = (
+                f"{screen_notes};self_eval={self_eval_payload.get('decision')}"
+                f";self_eval_reason={self_eval_payload.get('reason', '')}"
+            )
         append_preflight(
             preflight_path,
             iteration,
@@ -486,9 +744,14 @@ def main() -> None:
             str(screen_results_dir) if screen_results_dir else "",
             screen_notes,
         )
+        update_loop_state(
+            loop_state_path,
+            loop_state,
+            last_self_eval_decision=self_eval_payload.get("decision", ""),
+        )
         update_status(repo_root)
 
-        if screen_rc != 0 or args.promote_screen == "never":
+        if screen_rc != 0 or args.promote_screen == "never" or self_eval_rc == ABORT_EXIT_CODE:
             if screen_rc != 0:
                 send_screen_failure_email(
                     repo_root=repo_root,
@@ -499,6 +762,43 @@ def main() -> None:
                     full_notes=screen_notes,
                     change_summary=args.change_summary,
                 )
+            elif self_eval_rc == ABORT_EXIT_CODE:
+                send_screen_failure_email(
+                    repo_root=repo_root,
+                    iteration=iteration,
+                    reward=-0.25,
+                    status="discard",
+                    screen_job=screen_job,
+                    full_notes=screen_notes,
+                    change_summary=args.change_summary,
+                )
+
+            append_trajectory_entry(
+                trajectory_path,
+                {
+                    "branch": branch,
+                    "candidate": candidate_metadata,
+                    "full": {},
+                    "iteration": iteration,
+                    "screen": {
+                        "failure_class": failure_class,
+                        "job": screen_job,
+                        "notes": screen_notes,
+                        "result_count": result_count,
+                        "self_eval": self_eval_payload,
+                        "state": screen_state,
+                    },
+                    "status": "crash" if screen_rc != 0 else "discard",
+                },
+            )
+            update_loop_state(
+                loop_state_path,
+                loop_state,
+                active_iteration="",
+                active_phase="idle",
+                active_screen_job="",
+                active_full_job="",
+            )
             iteration_count += 1
             if args.sleep_seconds:
                 time.sleep(args.sleep_seconds)
@@ -512,100 +812,67 @@ def main() -> None:
             args.memory,
             args.time_limit,
         )
-        loop_state["last_full_job"] = full_job
-        save_json(loop_state_path, loop_state)
+        update_loop_state(
+            loop_state_path,
+            loop_state,
+            active_phase="full",
+            active_full_job=full_job,
+            last_full_job=full_job,
+        )
 
         full_state, full_rc = poll_job(full_job, archive_root)
         full_results_dir = latest_results_dir(archive_root)
+        self_eval_abort = full_rc == ABORT_EXIT_CODE
         full_notes = f"full_state={full_state},full_rc={full_rc}"
 
-        if full_rc != 0 or full_results_dir is None:
-            log_forced_penalty(
-                repo_root=repo_root,
-                iteration=iteration,
-                screen_job=screen_job,
-                full_job=full_job,
-                status="crash",
-                change_summary=args.change_summary,
-                screen_notes=screen_notes,
-                full_notes=full_notes,
-            )
-            send_update_email(
-                repo_root=repo_root,
-                iteration=iteration,
-                results_dir=Path("."),
-                reward=PENALTY_INCOMPLETE,
-                status="crash",
-                screen_job=screen_job,
-                full_job=full_job,
-                full_notes=full_notes,
-                change_summary=args.change_summary,
-            )
-            iteration_count += 1
-            if args.sleep_seconds:
-                time.sleep(args.sleep_seconds)
-            continue
-
-        reward_preview = run(
-            [
-                "python3",
-                "scripts/evaluate_m3_autoresearch_reward.py",
-                "--iteration",
-                iteration,
-                "--results-dir",
-                str(full_results_dir),
-                "--no-log",
-            ],
-            cwd=repo_root,
-            capture_output=True,
-        )
-        reward_value = float(json.loads(reward_preview.stdout)["reward"])
-
-        if reward_value == PENALTY_INCOMPLETE:
-            log_forced_penalty(
-                repo_root=repo_root,
-                iteration=iteration,
-                screen_job=screen_job,
-                full_job=full_job,
-                status="crash",
-                change_summary=args.change_summary,
-                screen_notes=screen_notes,
-                full_notes=full_notes,
-            )
-            loop_state["last_completed_iteration"] = iteration
-            save_json(loop_state_path, loop_state)
-            update_status(repo_root)
-            send_update_email(
+        reward_payload: Dict[str, Any]
+        if full_results_dir is not None:
+            preview_status = "discard" if self_eval_abort else ("crash" if full_rc not in (0, None) else "keep")
+            reward_payload = evaluate_reward(
                 repo_root=repo_root,
                 iteration=iteration,
                 results_dir=full_results_dir,
-                reward=PENALTY_INCOMPLETE,
-                status="crash",
                 screen_job=screen_job,
                 full_job=full_job,
-                full_notes=full_notes,
+                status=preview_status,
                 change_summary=args.change_summary,
+                screen_notes=screen_notes,
+                full_notes=full_notes,
+                novelty_score=float(candidate_metadata["novelty_score"]),
+                self_eval_abort=self_eval_abort,
+                no_log=True,
             )
-            iteration_count += 1
-            if args.sleep_seconds:
-                time.sleep(args.sleep_seconds)
-            continue
+        else:
+            reward_payload = {"reward": PENALTY_INCOMPLETE}
 
-        status = "keep" if reward_value >= 0 else "discard"
-        reward = evaluate_reward(
-            repo_root=repo_root,
-            iteration=iteration,
-            full_results_dir=full_results_dir,
-            screen_job=screen_job,
-            full_job=full_job,
-            status=status,
-            change_summary=args.change_summary,
-            screen_notes=screen_notes,
-            full_notes=full_notes,
-        )
+        reward_value = float(reward_payload["reward"])
+        if self_eval_abort:
+            status = "discard"
+        elif full_rc not in (0, None):
+            status = "crash"
+        else:
+            status = "keep" if reward_value >= 0 else "discard"
 
-        if reward >= 0:
-            promote_incumbent(repo_root, stage_dir, iteration, full_results_dir)
+        if full_results_dir is not None:
+            reward_payload = evaluate_reward(
+                repo_root=repo_root,
+                iteration=iteration,
+                results_dir=full_results_dir,
+                screen_job=screen_job,
+                full_job=full_job,
+                status=status,
+                change_summary=args.change_summary,
+                screen_notes=screen_notes,
+                full_notes=full_notes,
+                novelty_score=float(candidate_metadata["novelty_score"]),
+                self_eval_abort=self_eval_abort,
+            )
+            reward = float(reward_payload["reward"])
+        else:
+            reward = PENALTY_INCOMPLETE
+
+        if status == "keep" and reward >= 0 and full_results_dir is not None and full_rc == 0:
+            promote_incumbent(repo_root, stage_dir, full_results_dir)
             loop_state["incumbent_iteration"] = iteration
             if args.auto_commit_keeps:
                 auto_commit_keep(
@@ -616,13 +883,46 @@ def main() -> None:
                     branch=args.commit_branch,
                 )
 
-        loop_state["last_completed_iteration"] = iteration
-        save_json(loop_state_path, loop_state)
+        append_trajectory_entry(
+            trajectory_path,
+            {
+                "branch": branch,
+                "candidate": candidate_metadata,
+                "full": {
+                    "job": full_job,
+                    "notes": full_notes,
+                    "results_dir": str(full_results_dir) if full_results_dir else "",
+                    "reward": reward,
+                    "self_eval_abort": self_eval_abort,
+                    "state": full_state,
+                },
+                "iteration": iteration,
+                "screen": {
+                    "failure_class": failure_class,
+                    "job": screen_job,
+                    "notes": screen_notes,
+                    "result_count": result_count,
+                    "self_eval": self_eval_payload,
+                    "state": screen_state,
+                },
+                "status": status,
+            },
+        )
+
+        update_loop_state(
+            loop_state_path,
+            loop_state,
+            active_iteration="",
+            active_phase="idle",
+            active_screen_job="",
+            active_full_job="",
+            last_completed_iteration=iteration,
+        )
         update_status(repo_root)
         send_update_email(
             repo_root=repo_root,
             iteration=iteration,
-            results_dir=full_results_dir,
+            results_dir=full_results_dir if full_results_dir is not None else Path("."),
             reward=reward,
             status=status,
             screen_job=screen_job,

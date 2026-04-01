@@ -2,13 +2,15 @@
 
 set -euo pipefail
 
-REPO_ROOT="${REPO_ROOT:-/auto/u/ef0952/projects/COS568-LI-SP26}"
+SCRIPT_DIR="$(cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="${REPO_ROOT:-$(cd "${SCRIPT_DIR}/.." && pwd)}"
 ITER_TAG="${ITER_TAG:?ITER_TAG must be set}"
 STAGE_DIR="${STAGE_DIR:?STAGE_DIR must be set}"
 ARCHIVE_ROOT="${ARCHIVE_ROOT:-${REPO_ROOT}/slurm_runs/${ITER_TAG}}"
 SCRATCH_ROOT="${SCRATCH_ROOT:-/scratch/${USER}/${ITER_TAG}_job_${SLURM_JOB_ID}}"
 BUILD_JOBS="${BUILD_JOBS:-${SLURM_CPUS_PER_TASK:-8}}"
 DATA_CACHE_ROOT="${DATA_CACHE_ROOT:-/scratch/ef0952/cos568_data}"
+WORKLOAD_TIMEOUT="${WORKLOAD_TIMEOUT:-7m}"
 
 download_if_missing() {
   local output_path="$1"
@@ -48,6 +50,8 @@ cleanup() {
     "${ARCHIVE_ROOT}/benchmark.${SLURM_JOB_ID}.stdout" 2>/dev/null || true
   cp -f "${SCRATCH_ROOT}/benchmark.stderr" \
     "${ARCHIVE_ROOT}/benchmark.${SLURM_JOB_ID}.stderr" 2>/dev/null || true
+  cp -f "${SCRATCH_ROOT}/self_eval.json" \
+    "${ARCHIVE_ROOT}/self_eval.${SLURM_JOB_ID}.json" 2>/dev/null || true
   cp -rf "${SCRATCH_ROOT}/results" "${ARCHIVE_ROOT}/results.${SLURM_JOB_ID}" \
     2>/dev/null || true
   exit "${rc}"
@@ -100,23 +104,50 @@ for dataset in fb_100M_public_uint64 books_100M_public_uint64 osmc_100M_public_u
   ./build_scratch/generate "./data/${dataset}" 2000000 --insert-ratio 0.1 --negative-lookup-ratio 0.5 --mix
 done
 
+: > "${SCRATCH_ROOT}/benchmark.stdout"
+: > "${SCRATCH_ROOT}/benchmark.stderr"
+echo '{"decision":"continue","reason":"no self-evaluation run yet"}' > "${SCRATCH_ROOT}/self_eval.json"
+
+run_workload() {
+  local dataset="$1"
+  local token="$2"
+  /usr/bin/time -v \
+    timeout "${WORKLOAD_TIMEOUT}" \
+    ./build_scratch/benchmark \
+      "./data/${dataset}" \
+      "./data/${dataset}_ops_2M_0.000000rq_0.500000nl_${token}_0m_mix" \
+      --through --verify --csv --only HybridPGMLIPP -r 1 \
+      >> "${SCRATCH_ROOT}/benchmark.stdout" \
+      2>> "${SCRATCH_ROOT}/benchmark.stderr"
+}
+
 set +e
-/usr/bin/time -v \
-  timeout 40m \
-  bash -lc '
-    for dataset in fb_100M_public_uint64 books_100M_public_uint64 osmc_100M_public_uint64; do
-      ./build_scratch/benchmark \
-        ./data/${dataset} \
-        ./data/${dataset}_ops_2M_0.000000rq_0.500000nl_0.100000i_0m_mix \
-        --through --verify --csv --only HybridPGMLIPP -r 1
-      ./build_scratch/benchmark \
-        ./data/${dataset} \
-        ./data/${dataset}_ops_2M_0.000000rq_0.500000nl_0.900000i_0m_mix \
-        --through --verify --csv --only HybridPGMLIPP -r 1
-    done
-  ' > "${SCRATCH_ROOT}/benchmark.stdout" \
-    2> "${SCRATCH_ROOT}/benchmark.stderr"
-rc=$?
+rc=0
+for dataset in fb_100M_public_uint64 books_100M_public_uint64 osmc_100M_public_uint64; do
+  for token in 0.100000i 0.900000i; do
+    run_workload "${dataset}" "${token}"
+    rc=$?
+    if [[ "${rc}" -ne 0 ]]; then
+      break 2
+    fi
+
+    python3 ./scripts/self_evaluate_m3_candidate.py \
+      --repo-root "${REPO_ROOT}" \
+      --results-dir "${SCRATCH_ROOT}/workspace/results" \
+      --mode full \
+      --output "${SCRATCH_ROOT}/self_eval.json" \
+      > /dev/null
+    eval_rc=$?
+    if [[ "${eval_rc}" -eq 42 ]]; then
+      rc=42
+      break 2
+    fi
+    if [[ "${eval_rc}" -ne 0 ]]; then
+      rc="${eval_rc}"
+      break 2
+    fi
+  done
+done
 set -e
 
 echo "${rc}" > "${SCRATCH_ROOT}/benchmark_status.txt"

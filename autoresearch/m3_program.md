@@ -32,8 +32,17 @@ The agent may read the whole repo, but it should only edit files that are plausi
 - `competitors/lipp/src/core/lipp.h`
 - `benchmark.h`
 - `util.h`
+- `scripts/run_m3_autoresearch_screen_compute.sh`
+- `scripts/run_m3_autoresearch_full_compute.sh`
+- `scripts/analysis_m3_screen.py`
 
 Avoid broad unrelated refactors.
+
+The canonical editable set and mutation families live in:
+
+- `autoresearch/mutation_policy.json`
+
+The loop enforces that policy and logs the chosen mutation family for each candidate.
 
 ## Reproducibility rule
 
@@ -125,9 +134,13 @@ The loop also maintains:
 
 - `autoresearch/current_status.json`
 - `autoresearch/current_blocker.md`
+- `autoresearch/current_context.md`
+- `autoresearch/trajectory.jsonl`
 
 These summarize recent failure classes, current assumptions, and the
-recommended edit layer for the next experiment.
+recommended edit layer for the next experiment. The context file includes the
+best kept candidate summary and the recent experiment window used as the
+loop's lightweight working memory.
 
 ## Reward function
 
@@ -155,7 +168,9 @@ Per-workload reward:
 Total reward is the sum over all six workloads.
 
 If the agent concludes an experiment without computing `h_cur` for all six
-workloads, assign reward `-1e18`.
+workloads, use shaped partial reward rather than a catastrophic sentinel
+penalty. Partial reward still penalizes missing workloads, but it preserves
+signal from measured workloads and adds a small novelty/efficiency component.
 
 Use:
 
@@ -191,8 +206,9 @@ The unattended Codex launcher enables auto-commit for kept candidates by
 default. Those commits:
 
 - include only the Milestone 3 source files
+- include the autoresearch screen/full compute scripts when they are part of the candidate
 - skip runtime state, logs, SLURM output, and autoresearch bookkeeping files
-- are written to branch `autoresearch/m3-kept` unless overridden
+- are written to the active autoresearch branch unless overridden
 
 ## What counts as success
 
@@ -208,9 +224,11 @@ A final Milestone 3 candidate should satisfy all of:
 - Prefer changes that reduce lookup miss overhead, because the current compliant owner-buffered design still loses badly to LIPP on read-heavy workloads.
 - Treat tiny owner regions and over-frequent flushing as high risk; iteration 22 timed out from this failure mode.
 - Preserve a clear rollback path: stage, screen, decide, then promote.
+- Let the self-evaluator save compute when a candidate is already trailing the incumbent after enough workloads.
 - Keep benchmark variant sweeps small. If the agent wants to test many parameters, do it by changing a few template instantiations in `benchmark_hybrid_pgm_lipp.cc`, not by exploding the search space.
 - Classify the failure layer before editing: build, startup, screen harness, benchmark execution, reward/logging, or design performance.
 - When a run yields no usable measurement, restore observability before optimizing performance.
 - After two similar failures, prefer harness or measurement edits over another core-design micro-tweak.
 - After three consecutive non-advancing iterations, shift strategy and update the blocker assumptions before proceeding.
 - After six consecutive no-result screen timeouts, stop parameter-only tuning in the same family and pivot to a design-family or diagnostic-path change that is more likely to restore measurability.
+- After repeated low-novelty candidates, switch mutation family or changed-file scope before trying another micro-variation.
