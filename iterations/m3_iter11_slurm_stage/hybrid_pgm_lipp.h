@@ -35,11 +35,6 @@ class HybridPGMLIPP : public Competitor<KeyType, SearchClass> {
           std::max(1, lipp_.assign_buffer_owners(static_cast<int>(owner_max_size)));
       buffers_.assign(owner_count, DynamicPGMType());
       buffer_sizes_.assign(owner_count, 0);
-      owner_region_sizes_.assign(owner_count, 0);
-      for (int owner_id = 0; owner_id < owner_count; ++owner_id) {
-        owner_region_sizes_[owner_id] =
-            static_cast<size_t>(lipp_.buffer_owner_size(owner_id));
-      }
     });
   }
 
@@ -99,8 +94,9 @@ class HybridPGMLIPP : public Competitor<KeyType, SearchClass> {
     const size_t owner_id = static_cast<size_t>(lipp_.locate_buffer_owner(data.key));
     buffers_[owner_id].insert(data.key, data.value);
     ++buffer_sizes_[owner_id];
+    ++total_staged_inserts_;
 
-    if (buffer_sizes_[owner_id] >= EffectiveFlushThreshold(owner_id)) {
+    if (buffer_sizes_[owner_id] >= EffectiveFlushThreshold()) {
       FlushOwner(owner_id);
     }
   }
@@ -126,7 +122,7 @@ class HybridPGMLIPP : public Competitor<KeyType, SearchClass> {
   }
 
   std::vector<std::string> variants() const {
-    return {"owner_buffered_lipp",
+    return {"leaf_buffered_lipp",
             SearchClass::name() + "-e" + std::to_string(pgm_error) + "-s" +
                 std::to_string(owner_max_size) + "-f" +
                 std::to_string(local_flush_threshold)};
@@ -140,45 +136,23 @@ class HybridPGMLIPP : public Competitor<KeyType, SearchClass> {
   void ResetState() {
     insert_count_ = 0;
     lookup_count_ = 0;
+    total_staged_inserts_ = 0;
     buffers_.clear();
     buffer_sizes_.clear();
-    owner_region_sizes_.clear();
   }
 
   bool PreferBufferFirst() const {
     return insert_count_ > lookup_count_ * 4;
   }
 
-  size_t EffectiveFlushThreshold(size_t owner_id) const {
-    const size_t region =
-        owner_id < owner_region_sizes_.size() ? owner_region_sizes_[owner_id] : 0;
-    size_t threshold = local_flush_threshold;
-    size_t min_threshold = std::min<size_t>(local_flush_threshold, 32);
-    size_t max_threshold = std::max<size_t>(local_flush_threshold, 32);
-
-    if (region > 0) {
-      // Keep owner-local buffers large enough to avoid tiny, disruption-heavy
-      // flushes, but still bounded by the owner region size.
-      min_threshold =
-          std::min<size_t>(local_flush_threshold, std::max<size_t>(32, region / 16));
-      max_threshold =
-          std::max(min_threshold,
-                   std::min<size_t>(std::max<size_t>(local_flush_threshold, 64),
-                                    std::max<size_t>(32, region / 4)));
-      threshold = std::min(max_threshold,
-                           std::max(min_threshold, std::min(local_flush_threshold,
-                                                            region / 8)));
-    }
-
-    if (insert_count_ > lookup_count_ * 4) {
-      return std::min(max_threshold, std::max<size_t>(threshold, threshold * 2));
-    }
-
+  size_t EffectiveFlushThreshold() const {
     if (lookup_count_ > insert_count_ * 4) {
-      return threshold;
+      return local_flush_threshold * 4;
     }
-
-    return threshold;
+    if (insert_count_ > lookup_count_ * 4) {
+      return std::max<size_t>(16, local_flush_threshold / 2);
+    }
+    return local_flush_threshold;
   }
 
   size_t LookupInBuffer(size_t owner_id, const KeyType& lookup_key) const {
@@ -200,19 +174,18 @@ class HybridPGMLIPP : public Competitor<KeyType, SearchClass> {
     buffers_[owner_id].for_each([&](const KeyType& key, const uint64_t value) {
       lipp_.insert(key, value);
     });
+    total_staged_inserts_ -= buffer_sizes_[owner_id];
     buffer_sizes_[owner_id] = 0;
     buffers_[owner_id] = DynamicPGMType();
-    owner_region_sizes_[owner_id] =
-        static_cast<size_t>(lipp_.buffer_owner_size(static_cast<int>(owner_id)));
   }
 
   mutable LIPP<KeyType, uint64_t> lipp_;
   mutable std::vector<DynamicPGMType> buffers_;
   mutable std::vector<size_t> buffer_sizes_;
-  mutable std::vector<size_t> owner_region_sizes_;
 
   mutable size_t insert_count_{0};
   mutable size_t lookup_count_{0};
+  mutable size_t total_staged_inserts_{0};
 };
 
 #endif  // TLI_HYBRID_PGM_LIPP_H

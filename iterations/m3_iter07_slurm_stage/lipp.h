@@ -311,8 +311,7 @@ public:
 
     int assign_buffer_owners(int owner_max_size) {
         int next_owner_id = 0;
-        assign_buffer_owners_recursive(root, std::max(1, owner_max_size),
-                                       next_owner_id);
+        assign_buffer_owners_recursive(root, std::max(1, owner_max_size), next_owner_id);
         if (root != NULL && root->buffer_owner_id < 0) {
             root->buffer_owner_id = next_owner_id ++;
         }
@@ -367,6 +366,41 @@ public:
         OwnerFrame frame;
         RT_ASSERT(find_owner_frame(owner_id, frame));
         return frame.node->size;
+    }
+
+    void rebuild_buffer_owner(int owner_id, const V* staged_values, int staged_count,
+                              double extra_lr_remain) {
+        RT_ASSERT(staged_count >= 0);
+
+        OwnerFrame frame;
+        RT_ASSERT(find_owner_frame(owner_id, frame));
+
+        std::vector<V> merged;
+        merged.reserve(frame.node->size + staged_count);
+        collect_subtree_pairs(frame.node, merged);
+        for (int i = 0; i < staged_count; ++i) {
+            merged.push_back(staged_values[i]);
+        }
+        std::sort(merged.begin(), merged.end(),
+                  [](const V& lhs, const V& rhs) { return lhs.first < rhs.first; });
+        for (size_t i = 1; i < merged.size(); ++i) {
+            RT_ASSERT(merged[i - 1].first < merged[i].first);
+        }
+
+        LIPP<T, P, USE_FMCD> rebuilt(std::max(0.0, extra_lr_remain), true);
+        rebuilt.bulk_load(merged.data(), static_cast<int>(merged.size()));
+        Node* new_subtree = rebuilt.root;
+        rebuilt.root = rebuilt.build_tree_none();
+
+        clear_owner_metadata_subtree(new_subtree);
+        new_subtree->buffer_owner_id = owner_id;
+
+        if (frame.parent == NULL) {
+            root = new_subtree;
+        } else {
+            frame.parent->items[frame.parent_pos].comp.child = new_subtree;
+        }
+        destroy_tree(frame.node);
     }
 
 private:
@@ -440,8 +474,7 @@ private:
         }
     }
 
-    void assign_buffer_owners_recursive(Node* node, int owner_max_size,
-                                        int& next_owner_id)
+    void assign_buffer_owners_recursive(Node* node, int owner_max_size, int& next_owner_id)
     {
         RT_ASSERT(node != NULL);
         node->buffer_owner_id = -1;
@@ -462,8 +495,8 @@ private:
         bool assigned_child = false;
         for (int i = 0; i < node->num_items; ++i) {
             if (BITMAP_GET(node->child_bitmap, i) == 1) {
-                assign_buffer_owners_recursive(node->items[i].comp.child,
-                                               owner_max_size, next_owner_id);
+                assign_buffer_owners_recursive(node->items[i].comp.child, owner_max_size,
+                                               next_owner_id);
                 assigned_child = true;
             }
         }
@@ -491,6 +524,44 @@ private:
             }
         }
         return false;
+    }
+
+    void collect_subtree_pairs(Node* subtree_root, std::vector<V>& out) const
+    {
+        std::stack<Node*> s;
+        s.push(subtree_root);
+        while (!s.empty()) {
+            Node* node = s.top();
+            s.pop();
+            for (int i = 0; i < node->num_items; ++i) {
+                if (BITMAP_GET(node->none_bitmap, i) == 1) {
+                    continue;
+                }
+                if (BITMAP_GET(node->child_bitmap, i) == 1) {
+                    s.push(node->items[i].comp.child);
+                } else {
+                    out.emplace_back(node->items[i].comp.data.key,
+                                     node->items[i].comp.data.value);
+                }
+            }
+        }
+    }
+
+    void clear_owner_metadata_subtree(Node* subtree_root)
+    {
+        std::stack<Node*> s;
+        s.push(subtree_root);
+        while (!s.empty()) {
+            Node* node = s.top();
+            s.pop();
+            node->buffer_owner_id = -1;
+            node->frozen_existing = 0;
+            for (int i = 0; i < node->num_items; ++i) {
+                if (BITMAP_GET(node->child_bitmap, i) == 1) {
+                    s.push(node->items[i].comp.child);
+                }
+            }
+        }
     }
 
     std::allocator<Node> node_allocator;
@@ -580,9 +651,9 @@ private:
             node->child_bitmap[0] = 0;
         } else {
             node = pending_two.top(); pending_two.pop();
-            node->buffer_owner_id = -1;
-            node->frozen_existing = 0;
         }
+        node->buffer_owner_id = -1;
+        node->frozen_existing = 0;
 
         const long double mid1_key = key1;
         const long double mid2_key = key2;

@@ -152,32 +152,17 @@ class HybridPGMLIPP : public Competitor<KeyType, SearchClass> {
   size_t EffectiveFlushThreshold(size_t owner_id) const {
     const size_t region =
         owner_id < owner_region_sizes_.size() ? owner_region_sizes_[owner_id] : 0;
-    size_t threshold = local_flush_threshold;
-    size_t min_threshold = std::min<size_t>(local_flush_threshold, 32);
-    size_t max_threshold = std::max<size_t>(local_flush_threshold, 32);
-
-    if (region > 0) {
-      // Keep owner-local buffers large enough to avoid tiny, disruption-heavy
-      // flushes, but still bounded by the owner region size.
-      min_threshold =
-          std::min<size_t>(local_flush_threshold, std::max<size_t>(32, region / 16));
-      max_threshold =
-          std::max(min_threshold,
-                   std::min<size_t>(std::max<size_t>(local_flush_threshold, 64),
-                                    std::max<size_t>(32, region / 4)));
-      threshold = std::min(max_threshold,
-                           std::max(min_threshold, std::min(local_flush_threshold,
-                                                            region / 8)));
+    size_t threshold =
+        std::max<size_t>(16, std::min<size_t>(local_flush_threshold, region / 8));
+    if (threshold == 16 && local_flush_threshold > 16 && region == 0) {
+      threshold = local_flush_threshold;
     }
-
-    if (insert_count_ > lookup_count_ * 4) {
-      return std::min(max_threshold, std::max<size_t>(threshold, threshold * 2));
-    }
-
     if (lookup_count_ > insert_count_ * 4) {
-      return threshold;
+      return std::max<size_t>(8, threshold / 2);
     }
-
+    if (insert_count_ > lookup_count_ * 4) {
+      return std::max<size_t>(32, threshold * 2);
+    }
     return threshold;
   }
 

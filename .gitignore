@@ -18,3 +18,14 @@ results/
 
 analysis_results/
 *.png
+scripts/__pycache__/
+build_iter22/
+slurm_runs/
+slurm-*.out
+slurm_fs_debug*
+autoresearch/logs/
+autoresearch/email_log.jsonl
+autoresearch/last_codex_message.txt
+autoresearch/incumbent_stage/
+autoresearch/incumbent_results/
+autoresearch/progress_test.png

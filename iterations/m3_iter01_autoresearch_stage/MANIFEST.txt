@@ -1,0 +1,11 @@
+iter_tag=m3_iter01
+created_at=2026-03-31T22:14:16-04:00
+repo_root=/auto/u/ef0952/projects/COS568-LI-SP26
+files=
+benchmark.h
+util.h
+benchmarks/benchmark_hybrid_pgm_lipp.cc
+benchmarks/benchmark_hybrid_pgm_lipp.h
+competitors/hybrid_pgm_lipp.h
+competitors/PGM-index/include/pgm_index_dynamic.hpp
+competitors/lipp/src/core/lipp.h

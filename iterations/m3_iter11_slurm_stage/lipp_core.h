@@ -311,8 +311,7 @@ public:
 
     int assign_buffer_owners(int owner_max_size) {
         int next_owner_id = 0;
-        assign_buffer_owners_recursive(root, std::max(1, owner_max_size),
-                                       next_owner_id);
+        assign_buffer_owners_recursive(root, std::max(1, owner_max_size), next_owner_id);
         if (root != NULL && root->buffer_owner_id < 0) {
             root->buffer_owner_id = next_owner_id ++;
         }
@@ -363,19 +362,8 @@ public:
         }
     }
 
-    int buffer_owner_size(int owner_id) const {
-        OwnerFrame frame;
-        RT_ASSERT(find_owner_frame(owner_id, frame));
-        return frame.node->size;
-    }
-
 private:
     struct Node;
-    struct OwnerFrame {
-        Node* node = NULL;
-        Node* parent = NULL;
-        int parent_pos = -1;
-    };
     struct Item
     {
         union {
@@ -440,8 +428,7 @@ private:
         }
     }
 
-    void assign_buffer_owners_recursive(Node* node, int owner_max_size,
-                                        int& next_owner_id)
+    void assign_buffer_owners_recursive(Node* node, int owner_max_size, int& next_owner_id)
     {
         RT_ASSERT(node != NULL);
         node->buffer_owner_id = -1;
@@ -462,8 +449,8 @@ private:
         bool assigned_child = false;
         for (int i = 0; i < node->num_items; ++i) {
             if (BITMAP_GET(node->child_bitmap, i) == 1) {
-                assign_buffer_owners_recursive(node->items[i].comp.child,
-                                               owner_max_size, next_owner_id);
+                assign_buffer_owners_recursive(node->items[i].comp.child, owner_max_size,
+                                               next_owner_id);
                 assigned_child = true;
             }
         }
@@ -471,26 +458,6 @@ private:
         if (!assigned_child) {
             node->buffer_owner_id = next_owner_id ++;
         }
-    }
-
-    bool find_owner_frame(int owner_id, OwnerFrame& frame) const
-    {
-        std::stack<OwnerFrame> s;
-        s.push(OwnerFrame{root, NULL, -1});
-        while (!s.empty()) {
-            OwnerFrame cur = s.top();
-            s.pop();
-            if (cur.node->buffer_owner_id == owner_id) {
-                frame = cur;
-                return true;
-            }
-            for (int i = 0; i < cur.node->num_items; ++i) {
-                if (BITMAP_GET(cur.node->child_bitmap, i) == 1) {
-                    s.push(OwnerFrame{cur.node->items[i].comp.child, cur.node, i});
-                }
-            }
-        }
-        return false;
     }
 
     std::allocator<Node> node_allocator;
@@ -580,9 +547,9 @@ private:
             node->child_bitmap[0] = 0;
         } else {
             node = pending_two.top(); pending_two.pop();
-            node->buffer_owner_id = -1;
-            node->frozen_existing = 0;
         }
+        node->buffer_owner_id = -1;
+        node->frozen_existing = 0;
 
         const long double mid1_key = key1;
         const long double mid2_key = key2;
