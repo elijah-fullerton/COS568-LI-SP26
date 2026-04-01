@@ -50,6 +50,10 @@ Escalation rules:
 - If two consecutive screen runs time out without a `RESULT` line, the next edit
   should target screening, sweep ordering, or measurement reliability rather
   than another micro-tweak inside `hybrid_pgm_lipp.h`.
+- If six consecutive screen runs time out without a `RESULT` line, pivot away
+  from parameter-only tuning in the same design family. Prefer a design-family
+  shift or a stronger diagnostic simplification that is more likely to restore
+  measurable signal.
 
 When finished:
 

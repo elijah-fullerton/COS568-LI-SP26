@@ -341,6 +341,28 @@ def send_update_email(
     )
 
 
+def send_screen_failure_email(
+    repo_root: Path,
+    iteration: str,
+    reward: float,
+    status: str,
+    screen_job: str,
+    full_notes: str,
+    change_summary: str,
+) -> None:
+    send_update_email(
+        repo_root=repo_root,
+        iteration=iteration,
+        results_dir=Path("."),
+        reward=reward,
+        status=status,
+        screen_job=screen_job,
+        full_job="",
+        full_notes=full_notes,
+        change_summary=change_summary,
+    )
+
+
 def log_forced_penalty(
     repo_root: Path,
     iteration: str,
@@ -460,6 +482,16 @@ def main() -> None:
         update_status(repo_root)
 
         if screen_rc != 0 or args.promote_screen == "never":
+            if screen_rc != 0:
+                send_screen_failure_email(
+                    repo_root=repo_root,
+                    iteration=iteration,
+                    reward=PENALTY_INCOMPLETE,
+                    status="crash",
+                    screen_job=screen_job,
+                    full_notes=screen_notes,
+                    change_summary=args.change_summary,
+                )
             iteration_count += 1
             if args.sleep_seconds:
                 time.sleep(args.sleep_seconds)

@@ -10,6 +10,7 @@ SCRATCH_ROOT="${SCRATCH_ROOT:-/scratch/${USER}/${ITER_TAG}_job_${SLURM_JOB_ID}}"
 BUILD_JOBS="${BUILD_JOBS:-${SLURM_CPUS_PER_TASK:-8}}"
 DATA_CACHE_ROOT="${DATA_CACHE_ROOT:-/scratch/ef0952/cos568_data}"
 WORKLOAD_TIMEOUT="${WORKLOAD_TIMEOUT:-12m}"
+SCREEN_OPS="${SCREEN_OPS:-250000}"
 
 download_if_missing() {
   local output_path="$1"
@@ -89,15 +90,15 @@ cmake -S . -B build_scratch -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_CXX_FLAGS="-DAUTORESEARCH_SCREEN_SAFE=1"
 cmake --build build_scratch -j "${BUILD_JOBS}"
 
-./build_scratch/generate ./data/fb_100M_public_uint64 2000000 --insert-ratio 0.1 --negative-lookup-ratio 0.5 --mix
-./build_scratch/generate ./data/fb_100M_public_uint64 2000000 --insert-ratio 0.9 --negative-lookup-ratio 0.5 --mix
+./build_scratch/generate ./data/fb_100M_public_uint64 "${SCREEN_OPS}" --insert-ratio 0.1 --negative-lookup-ratio 0.5 --mix
+./build_scratch/generate ./data/fb_100M_public_uint64 "${SCREEN_OPS}" --insert-ratio 0.9 --negative-lookup-ratio 0.5 --mix
 
 set +e
 /usr/bin/time -v \
   timeout "${WORKLOAD_TIMEOUT}" \
   ./build_scratch/benchmark \
     ./data/fb_100M_public_uint64 \
-    ./data/fb_100M_public_uint64_ops_2M_0.000000rq_0.500000nl_0.900000i_0m_mix \
+    ./data/fb_100M_public_uint64_ops_${SCREEN_OPS}_0.000000rq_0.500000nl_0.900000i_0m_mix \
     --through --verify --csv --only HybridPGMLIPP -r 1 \
     > "${SCRATCH_ROOT}/benchmark.stdout" \
     2> "${SCRATCH_ROOT}/benchmark.stderr"
@@ -107,7 +108,7 @@ rc_insert=$?
   timeout "${WORKLOAD_TIMEOUT}" \
   ./build_scratch/benchmark \
     ./data/fb_100M_public_uint64 \
-    ./data/fb_100M_public_uint64_ops_2M_0.000000rq_0.500000nl_0.100000i_0m_mix \
+    ./data/fb_100M_public_uint64_ops_${SCREEN_OPS}_0.000000rq_0.500000nl_0.100000i_0m_mix \
     --through --verify --csv --only HybridPGMLIPP -r 1 \
     >> "${SCRATCH_ROOT}/benchmark.stdout" \
     2>> "${SCRATCH_ROOT}/benchmark.stderr"

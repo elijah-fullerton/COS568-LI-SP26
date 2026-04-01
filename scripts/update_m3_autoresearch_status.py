@@ -47,7 +47,17 @@ def write_status_files(repo_root: Path) -> None:
 
     recommended_edit_layer = "implementation"
     recommendations = []
-    if screen_timeout_streak >= 2:
+    if screen_timeout_streak >= 6:
+        recommended_edit_layer = "design_family"
+        recommendations.extend(
+            [
+                "Six consecutive screen timeouts with no RESULT line detected.",
+                "Do not spend the next iteration on another parameter or flush-policy tweak inside the same design family.",
+                "Pivot toward a measurability-restoring design change: drastically cheaper canary behavior, smaller screen workload, or a different compliant design family.",
+                "If the next edit cannot plausibly restore signal, use it to simplify the diagnostic path rather than optimize throughput.",
+            ]
+        )
+    elif screen_timeout_streak >= 2:
         recommended_edit_layer = "screening"
         recommendations.extend(
             [
@@ -84,6 +94,10 @@ def write_status_files(repo_root: Path) -> None:
     if screen_timeout_streak >= 1:
         assumptions.append(
             "Recent screen jobs are timing out before the first RESULT line, so the first screened candidate is likely pathological."
+        )
+    if screen_timeout_streak >= 6:
+        assumptions.append(
+            "Repeated no-signal failures suggest the current compliant tuning path may be below the measurability threshold, not just poorly screened."
         )
     if not reward_state.get("best_hybrid_throughput"):
         assumptions.append(
@@ -126,6 +140,7 @@ def write_status_files(repo_root: Path) -> None:
             "- First repeated failure: fix the same layer if the failure is obvious and local.",
             "- Second similar failure: inspect the harness or measurement setup before changing the core design again.",
             "- Third similar failure: change search strategy or experimental structure, not just parameters.",
+            "- After six consecutive no-result screen timeouts: pivot design family or diagnostic path before making another micro-tweak in the same family.",
             "- If a run produces no usable measurement, prioritize restoring observability before optimizing throughput.",
         ]
     )

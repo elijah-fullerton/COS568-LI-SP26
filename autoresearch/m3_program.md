@@ -90,6 +90,7 @@ Screen runs are structured to maximize diagnostic signal:
 
 - the screen build uses a safer single-variant-per-workload configuration
 - the insert-heavy and lookup-heavy workloads run under separate timeouts
+- the screen workload uses a reduced operation count to restore signal quickly
 - the loop records failure class and emitted result count for each screen job
 
 ### 2. Promote only promising candidates
@@ -212,3 +213,4 @@ A final Milestone 3 candidate should satisfy all of:
 - When a run yields no usable measurement, restore observability before optimizing performance.
 - After two similar failures, prefer harness or measurement edits over another core-design micro-tweak.
 - After three consecutive non-advancing iterations, shift strategy and update the blocker assumptions before proceeding.
+- After six consecutive no-result screen timeouts, stop parameter-only tuning in the same family and pivot to a design-family or diagnostic-path change that is more likely to restore measurability.
