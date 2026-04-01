@@ -316,29 +316,36 @@ def send_update_email(
     full_notes: str,
     change_summary: str,
 ) -> None:
-    run(
-        [
-            "python3",
-            "scripts/send_m3_autoresearch_update.py",
-            "--iteration",
-            iteration,
-            "--results-dir",
-            str(results_dir),
-            "--reward",
-            str(reward),
-            "--status",
-            status,
-            "--screen-job",
-            screen_job,
-            "--full-job",
-            full_job,
-            "--full-notes",
-            full_notes,
-            "--change-summary",
-            change_summary,
-        ],
-        cwd=repo_root,
-    )
+    reward_arg = format(reward, ".12f") if reward == PENALTY_INCOMPLETE else format(reward, ".12g")
+    try:
+        run(
+            [
+                "python3",
+                "scripts/send_m3_autoresearch_update.py",
+                "--iteration",
+                iteration,
+                "--results-dir",
+                str(results_dir),
+                f"--reward={reward_arg}",
+                "--status",
+                status,
+                "--screen-job",
+                screen_job,
+                "--full-job",
+                full_job,
+                "--full-notes",
+                full_notes,
+                "--change-summary",
+                change_summary,
+            ],
+            cwd=repo_root,
+        )
+    except subprocess.CalledProcessError as exc:
+        print(
+            f"Warning: failed to send autoresearch email for {iteration}: {exc}",
+            file=sys.stderr,
+            flush=True,
+        )
 
 
 def send_screen_failure_email(
