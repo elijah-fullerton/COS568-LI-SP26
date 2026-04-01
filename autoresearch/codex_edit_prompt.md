@@ -9,6 +9,8 @@ outer orchestration loop will do that after you exit.
 Before editing, read:
 
 - `autoresearch/m3_program.md`
+- `autoresearch/current_blocker.md`
+- `autoresearch/current_status.json`
 - `autoresearch/reward_state.json`
 - `autoresearch/loop_state.json`
 - `autoresearch/results.tsv`
@@ -23,6 +25,7 @@ Scope:
   `autoresearch/m3_program.md`
 - make one coherent improvement only
 - keep the parameter sweep small
+- choose the edit layer based on the blocker, not just the last file edited
 
 Do not:
 
@@ -37,6 +40,16 @@ Focus:
 - reducing flush disruption
 - avoiding tiny owner regions and over-aggressive flush thresholds
 - keeping the design milestone-3 compliant
+- restoring measurability before optimizing throughput when a run yields no usable result
+
+Escalation rules:
+
+- First repeated failure: fix the same layer only if the failure is obviously local.
+- Second similar failure: inspect the harness or screening setup before changing the core design again.
+- Third similar failure: change strategy or experiment structure, not just parameters.
+- If two consecutive screen runs time out without a `RESULT` line, the next edit
+  should target screening, sweep ordering, or measurement reliability rather
+  than another micro-tweak inside `hybrid_pgm_lipp.h`.
 
 When finished:
 

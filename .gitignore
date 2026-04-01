@@ -29,3 +29,4 @@ autoresearch/last_codex_message.txt
 autoresearch/incumbent_stage/
 autoresearch/incumbent_results/
 autoresearch/progress_test.png
+iterations/*_autoresearch_stage/

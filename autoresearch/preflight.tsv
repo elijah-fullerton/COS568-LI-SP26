@@ -1,1 +1,5 @@
-iteration	screen_job	screen_status	screen_results_dir	notes
+iteration	screen_job	screen_status	screen_rc	failure_class	result_count	screen_results_dir	notes
+m3_iter02	2688385	COMPLETED	124	screen_timeout_no_result	0	/auto/u/ef0952/projects/COS568-LI-SP26/slurm_runs/m3_iter02/results.2688385	screen_state=COMPLETED,screen_rc=124
+m3_iter03	2688441	COMPLETED	124	screen_timeout_no_result	0	/auto/u/ef0952/projects/COS568-LI-SP26/slurm_runs/m3_iter03/results.2688441	screen_state=COMPLETED,screen_rc=124
+m3_iter04	2688453	COMPLETED	124	screen_timeout_no_result	0	/auto/u/ef0952/projects/COS568-LI-SP26/slurm_runs/m3_iter04/results.2688453	screen_state=COMPLETED,screen_rc=124
+m3_iter05	2688483	COMPLETED	124	screen_timeout_no_result	0	/auto/u/ef0952/projects/COS568-LI-SP26/slurm_runs/m3_iter05/results.2688483	screen_state=COMPLETED,screen_rc=124

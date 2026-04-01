@@ -9,6 +9,7 @@ ARCHIVE_ROOT="${ARCHIVE_ROOT:-${REPO_ROOT}/slurm_runs/${ITER_TAG}}"
 SCRATCH_ROOT="${SCRATCH_ROOT:-/scratch/${USER}/${ITER_TAG}_job_${SLURM_JOB_ID}}"
 BUILD_JOBS="${BUILD_JOBS:-${SLURM_CPUS_PER_TASK:-8}}"
 DATA_CACHE_ROOT="${DATA_CACHE_ROOT:-/scratch/ef0952/cos568_data}"
+WORKLOAD_TIMEOUT="${WORKLOAD_TIMEOUT:-12m}"
 
 download_if_missing() {
   local output_path="$1"
@@ -84,7 +85,8 @@ download_if_missing \
   "${SCRATCH_ROOT}/cos568_data/fb_100M_public_uint64" \
   "https://www.dropbox.com/scl/fi/hngvfbz1a2tkwpebjngb9/fb_100M_public_uint64?rlkey=px31l6wj9tnic4z604bt6s55n&st=d3iuhhgx&dl=0"
 
-cmake -S . -B build_scratch -DCMAKE_BUILD_TYPE=Release
+cmake -S . -B build_scratch -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_CXX_FLAGS="-DAUTORESEARCH_SCREEN_SAFE=1"
 cmake --build build_scratch -j "${BUILD_JOBS}"
 
 ./build_scratch/generate ./data/fb_100M_public_uint64 2000000 --insert-ratio 0.1 --negative-lookup-ratio 0.5 --mix
@@ -92,19 +94,30 @@ cmake --build build_scratch -j "${BUILD_JOBS}"
 
 set +e
 /usr/bin/time -v \
-  timeout 25m \
-  bash -lc '
-    ./build_scratch/benchmark \
-      ./data/fb_100M_public_uint64 \
-      ./data/fb_100M_public_uint64_ops_2M_0.000000rq_0.500000nl_0.100000i_0m_mix \
-      --through --verify --csv --only HybridPGMLIPP -r 1
-    ./build_scratch/benchmark \
-      ./data/fb_100M_public_uint64 \
-      ./data/fb_100M_public_uint64_ops_2M_0.000000rq_0.500000nl_0.900000i_0m_mix \
-      --through --verify --csv --only HybridPGMLIPP -r 1
-  ' > "${SCRATCH_ROOT}/benchmark.stdout" \
+  timeout "${WORKLOAD_TIMEOUT}" \
+  ./build_scratch/benchmark \
+    ./data/fb_100M_public_uint64 \
+    ./data/fb_100M_public_uint64_ops_2M_0.000000rq_0.500000nl_0.900000i_0m_mix \
+    --through --verify --csv --only HybridPGMLIPP -r 1 \
+    > "${SCRATCH_ROOT}/benchmark.stdout" \
     2> "${SCRATCH_ROOT}/benchmark.stderr"
-rc=$?
+rc_insert=$?
+
+/usr/bin/time -v \
+  timeout "${WORKLOAD_TIMEOUT}" \
+  ./build_scratch/benchmark \
+    ./data/fb_100M_public_uint64 \
+    ./data/fb_100M_public_uint64_ops_2M_0.000000rq_0.500000nl_0.100000i_0m_mix \
+    --through --verify --csv --only HybridPGMLIPP -r 1 \
+    >> "${SCRATCH_ROOT}/benchmark.stdout" \
+    2>> "${SCRATCH_ROOT}/benchmark.stderr"
+rc_lookup=$?
 set -e
 
-echo "${rc}" > "${SCRATCH_ROOT}/benchmark_status.txt"
+if [[ "${rc_insert}" -ne 0 ]]; then
+  echo "${rc_insert}" > "${SCRATCH_ROOT}/benchmark_status.txt"
+elif [[ "${rc_lookup}" -ne 0 ]]; then
+  echo "${rc_lookup}" > "${SCRATCH_ROOT}/benchmark_status.txt"
+else
+  echo "0" > "${SCRATCH_ROOT}/benchmark_status.txt"
+fi

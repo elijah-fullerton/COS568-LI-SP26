@@ -8,6 +8,8 @@ Work only on Milestone 3 HybridPGMLIPP autoresearch.
 
 Start by reading:
 - autoresearch/m3_program.md
+- autoresearch/current_blocker.md
+- autoresearch/current_status.json
 - autoresearch/reward_state.json
 - autoresearch/loop_state.json
 
@@ -20,7 +22,7 @@ Use this loop indefinitely:
 2. Stage it with scripts/stage_m3_autoresearch_iteration.sh.
 3. Run scripts/run_m3_autoresearch_loop.py --iterations 1 --promote-screen always
 4. Read autoresearch/results.tsv and autoresearch/reward_state.json.
-5. If the candidate was discarded, restore the incumbent and try a different idea.
+5. If the candidate was discarded or the screen produced no usable result, shift the next edit toward the layer identified in autoresearch/current_blocker.md.
 6. Never stop on your own. Keep iterating until interrupted.
 
 Rules:
@@ -28,6 +30,7 @@ Rules:
 - Do not conclude an experiment without a full six-workload result.
 - Prefer ideas that reduce lookup miss overhead or flush disruption.
 - Avoid tiny owner partitions and over-aggressive flush thresholds.
+- Restore measurability before optimizing throughput when no useful result is emitted.
 ```
 
 For unattended operation without an already-open interactive agent, prefer the

@@ -86,6 +86,12 @@ Keep a candidate only if it:
 - preserves correctness under `--verify`
 - shows a plausible throughput improvement over the current kept design
 
+Screen runs are structured to maximize diagnostic signal:
+
+- the screen build uses a safer single-variant-per-workload configuration
+- the insert-heavy and lookup-heavy workloads run under separate timeouts
+- the loop records failure class and emitted result count for each screen job
+
 ### 2. Promote only promising candidates
 
 Only after the Facebook screen looks competitive:
@@ -113,6 +119,14 @@ Use:
 - `crash` for compile/runtime failures
 
 Screen-only canaries are recorded separately in `autoresearch/preflight.tsv`.
+
+The loop also maintains:
+
+- `autoresearch/current_status.json`
+- `autoresearch/current_blocker.md`
+
+These summarize recent failure classes, current assumptions, and the
+recommended edit layer for the next experiment.
 
 ## Reward function
 
@@ -194,3 +208,7 @@ A final Milestone 3 candidate should satisfy all of:
 - Treat tiny owner regions and over-frequent flushing as high risk; iteration 22 timed out from this failure mode.
 - Preserve a clear rollback path: stage, screen, decide, then promote.
 - Keep benchmark variant sweeps small. If the agent wants to test many parameters, do it by changing a few template instantiations in `benchmark_hybrid_pgm_lipp.cc`, not by exploding the search space.
+- Classify the failure layer before editing: build, startup, screen harness, benchmark execution, reward/logging, or design performance.
+- When a run yields no usable measurement, restore observability before optimizing performance.
+- After two similar failures, prefer harness or measurement edits over another core-design micro-tweak.
+- After three consecutive non-advancing iterations, shift strategy and update the blocker assumptions before proceeding.

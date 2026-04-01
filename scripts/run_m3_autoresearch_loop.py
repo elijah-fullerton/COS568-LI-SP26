@@ -114,6 +114,13 @@ def save_json(path: Path, data) -> None:
         handle.write("\n")
 
 
+def update_status(repo_root: Path) -> None:
+    run(
+        ["python3", "scripts/update_m3_autoresearch_status.py"],
+        cwd=repo_root,
+    )
+
+
 def next_iteration_tag(iterations_dir: Path) -> str:
     max_n = 0
     for path in iterations_dir.glob("m3_iter*_autoresearch_stage"):
@@ -182,6 +189,14 @@ def poll_job(job_id: str, archive_root: Path) -> Tuple[str, Optional[int]]:
         return state, rc
 
 
+def inspect_benchmark_output(archive_root: Path, job_id: str) -> int:
+    stdout_path = archive_root / f"benchmark.{job_id}.stdout"
+    if not stdout_path.exists():
+        return 0
+    stdout_text = stdout_path.read_text(encoding="ascii", errors="ignore")
+    return stdout_text.count("RESULT:")
+
+
 def latest_results_dir(archive_root: Path) -> Optional[Path]:
     candidates = [p for p in archive_root.glob("results.*") if p.is_dir()]
     if not candidates:
@@ -194,13 +209,25 @@ def append_preflight(
     iteration: str,
     screen_job: str,
     screen_status: str,
+    screen_rc: int,
+    failure_class: str,
+    result_count: int,
     screen_results_dir: str,
     notes: str,
 ) -> None:
     with preflight_path.open("a", newline="", encoding="ascii") as handle:
         writer = csv.writer(handle, delimiter="\t")
         writer.writerow(
-            [iteration, screen_job, screen_status, screen_results_dir, notes]
+            [
+                iteration,
+                screen_job,
+                screen_status,
+                screen_rc,
+                failure_class,
+                result_count,
+                screen_results_dir,
+                notes,
+            ]
         )
 
 
@@ -360,6 +387,14 @@ def maybe_run_edit_command(repo_root: Path, edit_command: str) -> None:
     )
 
 
+def classify_screen_outcome(screen_rc: Optional[int], result_count: int) -> str:
+    if screen_rc == 0:
+        return "screen_success" if result_count > 0 else "screen_completed_no_result"
+    if screen_rc == 124:
+        return "screen_timeout_partial" if result_count > 0 else "screen_timeout_no_result"
+    return "screen_failure_partial" if result_count > 0 else "screen_failure_no_result"
+
+
 def main() -> None:
     args = parse_args()
     repo_root = Path(args.repo_root)
@@ -380,6 +415,7 @@ def main() -> None:
 
     iteration_count = 0
     while args.iterations == 0 or iteration_count < args.iterations:
+        update_status(repo_root)
         if args.restore_incumbent_before_edit:
             restore_incumbent(repo_root)
 
@@ -407,15 +443,21 @@ def main() -> None:
 
         screen_state, screen_rc = poll_job(screen_job, archive_root)
         screen_results_dir = latest_results_dir(archive_root)
+        result_count = inspect_benchmark_output(archive_root, screen_job)
+        failure_class = classify_screen_outcome(screen_rc, result_count)
         screen_notes = args.screen_notes or f"screen_state={screen_state},screen_rc={screen_rc}"
         append_preflight(
             preflight_path,
             iteration,
             screen_job,
             screen_state or "unknown",
+            int(screen_rc or -1),
+            failure_class,
+            result_count,
             str(screen_results_dir) if screen_results_dir else "",
             screen_notes,
         )
+        update_status(repo_root)
 
         if screen_rc != 0 or args.promote_screen == "never":
             iteration_count += 1
@@ -506,6 +548,7 @@ def main() -> None:
 
         loop_state["last_completed_iteration"] = iteration
         save_json(loop_state_path, loop_state)
+        update_status(repo_root)
         send_update_email(
             repo_root=repo_root,
             iteration=iteration,

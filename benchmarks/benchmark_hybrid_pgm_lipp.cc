@@ -15,6 +15,19 @@ void benchmark_64_hybrid_pgm_lipp(tli::Benchmark<uint64_t>& benchmark,
     return;
   }
 
+#if defined(AUTORESEARCH_SCREEN_SAFE)
+  if (filename.find("0.100000i") != std::string::npos) {
+    benchmark.template Run<
+        HybridPGMLIPP<uint64_t, BranchingBinarySearch<record>, 64, 512, 64>>();
+    return;
+  }
+
+  if (filename.find("0.900000i") != std::string::npos) {
+    benchmark.template Run<
+        HybridPGMLIPP<uint64_t, BranchingBinarySearch<record>, 128, 1024, 128>>();
+    return;
+  }
+#else
   if (filename.find("0.100000i") != std::string::npos) {
     benchmark.template Run<
         HybridPGMLIPP<uint64_t, BranchingBinarySearch<record>, 64, 128, 16>>();
@@ -33,6 +46,7 @@ void benchmark_64_hybrid_pgm_lipp(tli::Benchmark<uint64_t>& benchmark,
     benchmark.template Run<
         HybridPGMLIPP<uint64_t, ExponentialSearch<record>, 128, 2048, 256>>();
   }
+#endif
 }
 
 template void benchmark_64_hybrid_pgm_lipp<0>(
