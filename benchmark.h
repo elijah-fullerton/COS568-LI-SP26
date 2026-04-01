@@ -4,6 +4,7 @@
 #include <math.h>
 
 #include <algorithm>
+#include <filesystem>
 #include <dtl/thread.hpp>
 #include <fstream>
 #include <iostream>
@@ -531,11 +532,27 @@ class Benchmark {
 
   template <class Index>
   void PrintResultCSV(const Index* index) {
+    namespace fs = std::filesystem;
+
     const char* results_dir_env = std::getenv("TLI_RESULTS_DIR");
-    const std::string results_dir =
-        results_dir_env == nullptr ? "./results" : results_dir_env;
-    const std::string filename =
-        results_dir + "/" + dataset_name_ + "_results_table.csv";
+    fs::path results_dir =
+        results_dir_env == nullptr ? fs::current_path() / "results"
+                                   : fs::path(results_dir_env);
+
+    // The autoresearch SLURM harness archives <scratch>/results, while the
+    // benchmark runs from <scratch>/workspace without exporting TLI_RESULTS_DIR.
+    // Detect that layout so CSVs land in the archived directory by default.
+    const fs::path cwd = fs::current_path();
+    const fs::path scratch_results = cwd.parent_path() / "results";
+    if (results_dir_env == nullptr && cwd.filename() == "workspace" &&
+        fs::exists(scratch_results) && fs::is_directory(scratch_results)) {
+      results_dir = scratch_results;
+    }
+
+    std::error_code mkdir_error;
+    fs::create_directories(results_dir, mkdir_error);
+
+    const fs::path filename = results_dir / (dataset_name_ + "_results_table.csv");
 
     std::ofstream fout(filename, std::ofstream::out | std::ofstream::app);
 

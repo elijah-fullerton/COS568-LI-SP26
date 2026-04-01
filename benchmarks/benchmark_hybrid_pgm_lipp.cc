@@ -16,35 +16,32 @@ void benchmark_64_hybrid_pgm_lipp(tli::Benchmark<uint64_t>& benchmark,
   }
 
 #if defined(AUTORESEARCH_SCREEN_SAFE)
-  if (filename.find("0.100000i") != std::string::npos) {
-    benchmark.template Run<
-        HybridPGMLIPP<uint64_t, BranchingBinarySearch<record>, 64, 512, 64>>();
-    return;
-  }
-
-  if (filename.find("0.900000i") != std::string::npos) {
-    benchmark.template Run<
-        HybridPGMLIPP<uint64_t, BranchingBinarySearch<record>, 128, 1024, 128>>();
+  if (filename.find("0.100000i") != std::string::npos ||
+      filename.find("0.900000i") != std::string::npos) {
+    // Restore screening measurability first: run exactly one canary that
+    // collapses nearly all updates into a single deferred-flush overlay.
+    // The recent timeout streak indicates even the prior "safe" setting was
+    // still spending too much time in owner routing and fragmented DynamicPGMs.
+    benchmark.template Run<HybridPGMLIPP<uint64_t, BranchingBinarySearch<record>,
+                                         256, 1 << 27, 1 << 27>>();
     return;
   }
 #else
   if (filename.find("0.100000i") != std::string::npos) {
-    benchmark.template Run<
-        HybridPGMLIPP<uint64_t, BranchingBinarySearch<record>, 64, 128, 16>>();
-    benchmark.template Run<
-        HybridPGMLIPP<uint64_t, ExponentialSearch<record>, 128, 256, 32>>();
-    benchmark.template Run<
-        HybridPGMLIPP<uint64_t, ExponentialSearch<record>, 128, 512, 64>>();
+    // Keep the incumbent read-heavy point, but spend the second slot on a
+    // tighter overlay probe. The previous e256 variant was dominated in every
+    // recent full run, so use the small sweep budget on a more lookup-focused
+    // candidate instead.
+    benchmark.template Run<HybridPGMLIPP<uint64_t, BranchingBinarySearch<record>,
+                                         32, 1 << 27, 1 << 27>>();
+    benchmark.template Run<HybridPGMLIPP<uint64_t, BranchingBinarySearch<record>,
+                                         64, 1 << 27, 1 << 27>>();
     return;
   }
 
   if (filename.find("0.900000i") != std::string::npos) {
-    benchmark.template Run<
-        HybridPGMLIPP<uint64_t, BranchingBinarySearch<record>, 64, 512, 64>>();
-    benchmark.template Run<
-        HybridPGMLIPP<uint64_t, BranchingBinarySearch<record>, 128, 1024, 128>>();
-    benchmark.template Run<
-        HybridPGMLIPP<uint64_t, ExponentialSearch<record>, 128, 2048, 256>>();
+    benchmark.template Run<HybridPGMLIPP<uint64_t, BranchingBinarySearch<record>,
+                                         256, 1 << 27, 1 << 27>>();
   }
 #endif
 }

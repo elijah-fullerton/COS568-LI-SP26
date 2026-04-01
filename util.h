@@ -11,6 +11,7 @@
 #include <vector>
 #include <map>
 #include <set>
+#include <regex>
 #include <string>
 #include <cstring>
 #include <immintrin.h>
@@ -119,6 +120,62 @@ static std::atomic<size_t> ready_threads;
 static void fail(const std::string& message) {
   std::cerr << message << std::endl;
   exit(EXIT_FAILURE);
+}
+
+static bool file_exists(const std::string& filename) {
+  std::ifstream in(filename, std::ios::binary);
+  return in.is_open();
+}
+
+static std::vector<std::string> workload_count_aliases(
+    const std::string& filename) {
+  static const std::regex count_pat(R"((.*_ops_)(\d+)([KkMm]?)(.*))");
+  std::smatch match;
+  if (!std::regex_match(filename, match, count_pat)) {
+    return {};
+  }
+
+  const std::string prefix = match[1];
+  const std::string digits = match[2];
+  const std::string suffix = match[3];
+  const std::string tail = match[4];
+
+  std::vector<std::string> aliases;
+  if (suffix.empty()) {
+    const uint64_t count = std::stoull(digits);
+    if (count >= 1000000 && count % 1000000 == 0) {
+      aliases.push_back(prefix + std::to_string(count / 1000000) + "M" + tail);
+    }
+    if (count >= 1000 && count % 1000 == 0) {
+      aliases.push_back(prefix + std::to_string(count / 1000) + "K" + tail);
+    }
+    return aliases;
+  }
+
+  uint64_t count = std::stoull(digits);
+  const char unit = suffix[0];
+  if (unit == 'K' || unit == 'k') {
+    count *= 1000;
+  } else if (unit == 'M' || unit == 'm') {
+    count *= 1000000;
+  } else {
+    return aliases;
+  }
+
+  aliases.push_back(prefix + std::to_string(count) + tail);
+  return aliases;
+}
+
+static std::string resolve_existing_input_path(const std::string& filename) {
+  if (file_exists(filename)) {
+    return filename;
+  }
+  for (const auto& alias : workload_count_aliases(filename)) {
+    if (file_exists(alias)) {
+      return alias;
+    }
+  }
+  return filename;
 }
 
 template <class KeyType>
@@ -265,8 +322,9 @@ template <typename T>
 static std::vector<T> load_data(const std::string& filename,
                                 bool print = true) {
   std::vector<T> data;
+  const std::string resolved_filename = resolve_existing_input_path(filename);
   const uint64_t ns = util::timing([&] {
-    std::ifstream in(filename, std::ios::binary);
+    std::ifstream in(resolved_filename, std::ios::binary);
     if (!in.is_open()) {
       std::cerr << "unable to open " << filename << std::endl;
       exit(EXIT_FAILURE);
@@ -277,9 +335,14 @@ static std::vector<T> load_data(const std::string& filename,
   const uint64_t ms = ns / 1e6;
 
   if (print) {
-    std::cout << "read " << data.size() << " values from " << filename << " in "
-              << ms << " ms (" << static_cast<double>(data.size()) / 1000 / ms
-              << " M values/s)" << std::endl;
+    if (resolved_filename != filename) {
+      std::cout << "resolved " << filename << " -> " << resolved_filename
+                << std::endl;
+    }
+    std::cout << "read " << data.size() << " values from " << resolved_filename
+              << " in " << ms << " ms ("
+              << static_cast<double>(data.size()) / 1000 / ms << " M values/s)"
+              << std::endl;
   }
 
   return data;
@@ -290,8 +353,9 @@ static std::vector<std::vector<T>> load_data_multithread(const std::string& file
                                 bool print = true) {
   std::vector<std::vector<T>> data;
   size_t size = 0;
+  const std::string resolved_filename = resolve_existing_input_path(filename);
   const uint64_t ns = util::timing([&] {
-    std::ifstream in(filename, std::ios::binary);
+    std::ifstream in(resolved_filename, std::ios::binary);
     if (!in.is_open()) {
       std::cerr << "unable to open " << filename << std::endl;
       exit(EXIT_FAILURE);
@@ -309,8 +373,12 @@ static std::vector<std::vector<T>> load_data_multithread(const std::string& file
   const uint64_t ms = ns / 1e6;
 
   if (print) {
-    std::cout << "read " << size << " values from " << filename << " in "
-              << ms << " ms (" << static_cast<double>(size) / 1000 / ms
+    if (resolved_filename != filename) {
+      std::cout << "resolved " << filename << " -> " << resolved_filename
+                << std::endl;
+    }
+    std::cout << "read " << size << " values from " << resolved_filename
+              << " in " << ms << " ms (" << static_cast<double>(size) / 1000 / ms
               << " M values/s)" << std::endl;
   }
 
