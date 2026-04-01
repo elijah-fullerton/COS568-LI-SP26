@@ -154,6 +154,16 @@ def current_hybrid_throughputs(results_dir: Path) -> Dict[str, float]:
     return current
 
 
+def penalty_output(iteration: str, results_dir: Path, error: str) -> Dict[str, object]:
+    return {
+        "iteration": iteration,
+        "reward": PENALTY_INCOMPLETE,
+        "results_dir": str(results_dir),
+        "details": {},
+        "error": error,
+    }
+
+
 def load_reward_state(state_path: Path) -> Dict[str, Dict[str, float]]:
     if not state_path.exists():
         return {"best_hybrid_throughput": {}}
@@ -262,18 +272,25 @@ def main() -> None:
     else:
         results_dir = latest_results_dir(repo_root / "slurm_runs" / args.iteration)
 
-    baselines = best_baselines(baseline_dir)
-    state = load_reward_state(state_path)
-    previous_best = state["best_hybrid_throughput"]
-    current = current_hybrid_throughputs(results_dir)
-    reward, details = compute_reward(baselines, previous_best, current)
+    try:
+        baselines = best_baselines(baseline_dir)
+        state = load_reward_state(state_path)
+        previous_best = state["best_hybrid_throughput"]
+        current = current_hybrid_throughputs(results_dir)
+        reward, details = compute_reward(baselines, previous_best, current)
+        output = {
+            "iteration": args.iteration,
+            "reward": reward,
+            "results_dir": str(results_dir),
+            "details": details,
+        }
+    except (FileNotFoundError, ValueError, OSError) as exc:
+        reward = PENALTY_INCOMPLETE
+        current = {}
+        previous_best = {}
+        state = {"best_hybrid_throughput": {}}
+        output = penalty_output(args.iteration, results_dir, str(exc))
 
-    output = {
-        "iteration": args.iteration,
-        "reward": reward,
-        "results_dir": str(results_dir),
-        "details": details,
-    }
     print(json.dumps(output, indent=2, sort_keys=True))
 
     if args.no_log:

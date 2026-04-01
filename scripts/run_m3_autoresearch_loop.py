@@ -560,6 +560,37 @@ def main() -> None:
             capture_output=True,
         )
         reward_value = float(json.loads(reward_preview.stdout)["reward"])
+
+        if reward_value == PENALTY_INCOMPLETE:
+            log_forced_penalty(
+                repo_root=repo_root,
+                iteration=iteration,
+                screen_job=screen_job,
+                full_job=full_job,
+                status="crash",
+                change_summary=args.change_summary,
+                screen_notes=screen_notes,
+                full_notes=full_notes,
+            )
+            loop_state["last_completed_iteration"] = iteration
+            save_json(loop_state_path, loop_state)
+            update_status(repo_root)
+            send_update_email(
+                repo_root=repo_root,
+                iteration=iteration,
+                results_dir=full_results_dir,
+                reward=PENALTY_INCOMPLETE,
+                status="crash",
+                screen_job=screen_job,
+                full_job=full_job,
+                full_notes=full_notes,
+                change_summary=args.change_summary,
+            )
+            iteration_count += 1
+            if args.sleep_seconds:
+                time.sleep(args.sleep_seconds)
+            continue
+
         status = "keep" if reward_value >= 0 else "discard"
         reward = evaluate_reward(
             repo_root=repo_root,
