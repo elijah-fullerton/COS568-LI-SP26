@@ -102,11 +102,50 @@ def average_throughput(row: Dict[str, str]) -> float:
     return sum(vals) / len(vals)
 
 
+def parse_raw_result_row(values: List[str], path: Path) -> Dict[str, str]:
+    width = len(values)
+    if width < 4:
+        raise ValueError(f"Unrecognized row width {width} in {path}: {values}")
+
+    row = {"index_name": values[0]}
+    if width <= 6:
+        row["build_time_ns1"] = values[1]
+        row["index_size_bytes"] = values[2]
+        row["mixed_throughput_mops1"] = values[3]
+        if width >= 5:
+            row["search_method"] = values[4]
+        if width >= 6:
+            row["value"] = values[5]
+        return row
+
+    if width <= 10:
+        row["build_time_ns1"] = values[1]
+        row["build_time_ns2"] = values[2]
+        row["build_time_ns3"] = values[3]
+        row["index_size_bytes"] = values[4]
+        row["mixed_throughput_mops1"] = values[5]
+        row["mixed_throughput_mops2"] = values[6]
+        row["mixed_throughput_mops3"] = values[7]
+        if width >= 9:
+            row["search_method"] = values[8]
+        if width >= 10:
+            row["value"] = values[9]
+        return row
+
+    raise ValueError(f"Unrecognized row width {width} in {path}: {values}")
+
+
 def load_csv_rows(path: Path) -> List[Dict[str, str]]:
     if not path.exists():
         raise FileNotFoundError(f"Missing CSV: {path}")
     with path.open(newline="", encoding="ascii") as handle:
-        return list(csv.DictReader(handle))
+        rows = list(csv.reader(handle))
+    if not rows:
+        return []
+    if rows[0] and rows[0][0] == "index_name":
+        header = rows[0]
+        return [dict(zip(header, row)) for row in rows[1:]]
+    return [parse_raw_result_row(row, path) for row in rows]
 
 
 def best_baselines(baseline_dir: Path) -> Dict[str, Dict[str, float]]:
@@ -284,7 +323,7 @@ def main() -> None:
             "results_dir": str(results_dir),
             "details": details,
         }
-    except (FileNotFoundError, ValueError, OSError) as exc:
+    except (FileNotFoundError, KeyError, ValueError, OSError) as exc:
         reward = PENALTY_INCOMPLETE
         current = {}
         previous_best = {}
