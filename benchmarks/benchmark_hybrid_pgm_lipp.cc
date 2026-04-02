@@ -16,12 +16,19 @@ void benchmark_64_hybrid_pgm_lipp(tli::Benchmark<uint64_t>& benchmark,
   }
 
 #if defined(AUTORESEARCH_SCREEN_SAFE)
-  if (filename.find("0.100000i") != std::string::npos ||
-      filename.find("0.900000i") != std::string::npos) {
-    // Restore screening measurability first: run exactly one canary that
-    // collapses nearly all updates into a single deferred-flush overlay.
-    // The recent timeout streak indicates even the prior "safe" setting was
-    // still spending too much time in owner routing and fragmented DynamicPGMs.
+  if (filename.find("0.100000i") != std::string::npos) {
+    // Keep the screen canary single-variant-per-workload, but align the
+    // read-heavy probe with the full-run winner so the cheap screen is more
+    // predictive of lookup-miss behavior instead of over-testing the
+    // insert-heavy e256 setting.
+    benchmark.template Run<HybridPGMLIPP<uint64_t, BranchingBinarySearch<record>,
+                                         32, 1 << 27, 1 << 27>>();
+    return;
+  }
+
+  if (filename.find("0.900000i") != std::string::npos) {
+    // Preserve the insert-heavy canary that keeps almost all updates in one
+    // deferred overlay and has remained the strongest full-run point.
     benchmark.template Run<HybridPGMLIPP<uint64_t, BranchingBinarySearch<record>,
                                          256, 1 << 27, 1 << 27>>();
     return;
