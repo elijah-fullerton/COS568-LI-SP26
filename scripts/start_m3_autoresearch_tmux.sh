@@ -2,10 +2,10 @@
 
 set -euo pipefail
 
-REPO_ROOT="${REPO_ROOT:-/auto/u/ef0952/projects/COS568-LI-SP26}"
-SESSION_NAME="${SESSION_NAME:-m3-autoresearch}"
+REPO_ROOT="${REPO_ROOT:-/auto/u/ef0952/projects/COS568-LI-SP26-autoresearch-rl}"
+SESSION_NAME="${SESSION_NAME:-autoresearch_rl}"
 ITERATIONS="${ITERATIONS:-0}"
-PROMOTE_SCREEN="${PROMOTE_SCREEN:-always}"
+PROMOTE_SCREEN="${PROMOTE_SCREEN:-auto}"
 CPUS="${CPUS:-8}"
 MEMORY="${MEMORY:-64G}"
 TIME_LIMIT="${TIME_LIMIT:-04:00:00}"

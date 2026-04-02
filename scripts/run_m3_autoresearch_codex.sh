@@ -5,7 +5,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="${REPO_ROOT:-$(cd "${SCRIPT_DIR}/.." && pwd)}"
 ITERATIONS="${ITERATIONS:-0}"
-PROMOTE_SCREEN="${PROMOTE_SCREEN:-always}"
+PROMOTE_SCREEN="${PROMOTE_SCREEN:-auto}"
 CPUS="${CPUS:-8}"
 MEMORY="${MEMORY:-64G}"
 TIME_LIMIT="${TIME_LIMIT:-04:00:00}"

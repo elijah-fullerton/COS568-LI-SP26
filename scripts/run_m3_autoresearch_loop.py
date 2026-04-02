@@ -5,6 +5,7 @@ import csv
 import hashlib
 import json
 import os
+import random
 import shlex
 import shutil
 import subprocess
@@ -17,6 +18,19 @@ from typing import Any, Dict, List, Optional, Tuple
 PENALTY_INCOMPLETE = -1000.0
 STATE_POLL_SECONDS = 30
 ABORT_EXIT_CODE = 42
+EDIT_COMMAND_MAX_RETRIES = 4
+EDIT_COMMAND_RETRY_BASE_SECONDS = 30
+SCREEN_PROMOTION_MIN_WORKLOADS = 2
+SCREEN_PROMOTION_MIN_AVG_DELTA = 0.01
+SCREEN_PROMOTION_MIN_MAX_DELTA = 0.02
+TRANSIENT_EDIT_ERROR_SUBSTRINGS = (
+    "selected model is at capacity",
+    "rate limit",
+    "too many requests",
+    "temporarily unavailable",
+    "server overloaded",
+    "over capacity",
+)
 DEFAULT_EDITABLE_PATHS = [
     "benchmark.h",
     "util.h",
@@ -78,8 +92,8 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--promote-screen",
-        default="always",
-        choices=["always", "never"],
+        default="auto",
+        choices=["always", "auto", "never"],
         help="Whether a successful screen should be promoted to a full run.",
     )
     parser.add_argument(
@@ -434,13 +448,50 @@ def send_screen_failure_email(
 def maybe_run_edit_command(repo_root: Path, edit_command: str) -> None:
     if not edit_command:
         return
-    subprocess.run(
-        edit_command,
-        cwd=str(repo_root),
-        shell=True,
-        text=True,
-        check=True,
-    )
+    for attempt in range(1, EDIT_COMMAND_MAX_RETRIES + 1):
+        result = subprocess.run(
+            edit_command,
+            cwd=str(repo_root),
+            shell=True,
+            text=True,
+            capture_output=True,
+        )
+        if result.stdout:
+            print(result.stdout, end="", flush=True)
+        if result.stderr:
+            print(result.stderr, end="", file=sys.stderr, flush=True)
+        if result.returncode == 0:
+            return
+
+        exc = subprocess.CalledProcessError(
+            result.returncode,
+            edit_command,
+            output=result.stdout,
+            stderr=result.stderr,
+        )
+        combined = "\n".join(
+            chunk
+            for chunk in (
+                result.stdout.lower() if result.stdout else "",
+                result.stderr.lower() if result.stderr else "",
+                edit_command.lower(),
+            )
+            if chunk
+        )
+        is_transient = any(token in combined for token in TRANSIENT_EDIT_ERROR_SUBSTRINGS)
+        if attempt == EDIT_COMMAND_MAX_RETRIES or not is_transient:
+            raise exc
+
+        delay = EDIT_COMMAND_RETRY_BASE_SECONDS * (2 ** (attempt - 1))
+        jitter = random.randint(0, max(1, delay // 5))
+        total_delay = delay + jitter
+        print(
+            "Edit command hit a transient backend error; "
+            f"retrying in {total_delay}s (attempt {attempt}/{EDIT_COMMAND_MAX_RETRIES})",
+            file=sys.stderr,
+            flush=True,
+        )
+        time.sleep(total_delay)
 
 
 def classify_screen_outcome(screen_rc: Optional[int], result_count: int) -> str:
@@ -601,6 +652,29 @@ def run_self_evaluator(repo_root: Path, results_dir: Path, mode: str) -> Tuple[i
     return result.returncode, payload
 
 
+def should_promote_screen(promote_screen: str, self_eval_payload: Dict[str, Any]) -> bool:
+    if promote_screen == "always":
+        return True
+    if promote_screen == "never":
+        return False
+    if self_eval_payload.get("decision") != "continue":
+        return False
+    compared = int(self_eval_payload.get("compared_workloads", 0) or 0)
+    if compared < SCREEN_PROMOTION_MIN_WORKLOADS:
+        return False
+    avg_rel = self_eval_payload.get("average_relative_delta")
+    if avg_rel is None or float(avg_rel) < SCREEN_PROMOTION_MIN_AVG_DELTA:
+        return False
+    max_rel = max(
+        (
+            float(detail.get("relative_delta", 0.0))
+            for detail in self_eval_payload.get("details", [])
+        ),
+        default=-1.0,
+    )
+    return max_rel >= SCREEN_PROMOTION_MIN_MAX_DELTA
+
+
 def update_loop_state(loop_state_path: Path, loop_state: Dict[str, Any], **updates: Any) -> None:
     loop_state.update(updates)
     save_json(loop_state_path, loop_state)
@@ -751,7 +825,13 @@ def main() -> None:
         )
         update_status(repo_root)
 
-        if screen_rc != 0 or args.promote_screen == "never" or self_eval_rc == ABORT_EXIT_CODE:
+        promote_to_full = (
+            screen_rc == 0
+            and self_eval_rc != ABORT_EXIT_CODE
+            and should_promote_screen(args.promote_screen, self_eval_payload)
+        )
+
+        if screen_rc != 0 or not promote_to_full or self_eval_rc == ABORT_EXIT_CODE:
             if screen_rc != 0:
                 send_screen_failure_email(
                     repo_root=repo_root,
@@ -770,6 +850,16 @@ def main() -> None:
                     status="discard",
                     screen_job=screen_job,
                     full_notes=screen_notes,
+                    change_summary=args.change_summary,
+                )
+            else:
+                send_screen_failure_email(
+                    repo_root=repo_root,
+                    iteration=iteration,
+                    reward=-0.05,
+                    status="discard",
+                    screen_job=screen_job,
+                    full_notes=f"{screen_notes};promotion=screen_not_competitive",
                     change_summary=args.change_summary,
                 )
 

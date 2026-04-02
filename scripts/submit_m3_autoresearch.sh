@@ -16,6 +16,12 @@ ARCHIVE_ROOT="${ARCHIVE_ROOT:-${REPO_ROOT}/slurm_runs/${ITER_TAG}}"
 CPUS="${CPUS:-8}"
 MEMORY="${MEMORY:-64G}"
 TIME_LIMIT="${TIME_LIMIT:-04:00:00}"
+SCREEN_CPUS="${SCREEN_CPUS:-4}"
+SCREEN_MEMORY="${SCREEN_MEMORY:-24G}"
+SCREEN_TIME_LIMIT="${SCREEN_TIME_LIMIT:-00:20:00}"
+FULL_CPUS="${FULL_CPUS:-8}"
+FULL_MEMORY="${FULL_MEMORY:-48G}"
+FULL_TIME_LIMIT="${FULL_TIME_LIMIT:-01:15:00}"
 
 if [[ ! -d "${STAGE_DIR}" ]]; then
   echo "Missing stage dir: ${STAGE_DIR}" >&2
@@ -27,10 +33,16 @@ case "${MODE}" in
   screen)
     COMPUTE_SCRIPT="${REPO_ROOT}/scripts/run_m3_autoresearch_screen_compute.sh"
     JOB_NAME="${ITER_TAG}-screen"
+    JOB_CPUS="${SCREEN_CPUS}"
+    JOB_MEMORY="${SCREEN_MEMORY}"
+    JOB_TIME_LIMIT="${SCREEN_TIME_LIMIT}"
     ;;
   full)
     COMPUTE_SCRIPT="${REPO_ROOT}/scripts/run_m3_autoresearch_full_compute.sh"
     JOB_NAME="${ITER_TAG}-full"
+    JOB_CPUS="${FULL_CPUS}"
+    JOB_MEMORY="${FULL_MEMORY}"
+    JOB_TIME_LIMIT="${FULL_TIME_LIMIT}"
     ;;
   *)
     echo "Mode must be screen or full." >&2
@@ -50,9 +62,9 @@ fi
   --partition=all \
   --nodes=1 \
   --ntasks=1 \
-  --cpus-per-task="${CPUS}" \
-  --mem="${MEMORY}" \
-  --time="${TIME_LIMIT}" \
+  --cpus-per-task="${JOB_CPUS}" \
+  --mem="${JOB_MEMORY}" \
+  --time="${JOB_TIME_LIMIT}" \
   --output="${ARCHIVE_ROOT}/slurm.%j.out" \
   --error="${ARCHIVE_ROOT}/slurm.%j.err" \
   --export=ALL,REPO_ROOT="${REPO_ROOT}",ITER_TAG="${ITER_TAG}",STAGE_DIR="${STAGE_DIR}",ARCHIVE_ROOT="${ARCHIVE_ROOT}" \

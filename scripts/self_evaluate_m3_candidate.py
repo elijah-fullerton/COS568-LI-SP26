@@ -36,11 +36,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--repo-root", default=str(repo_root_default()))
     parser.add_argument("--results-dir", required=True)
     parser.add_argument("--mode", choices=["screen", "full"], required=True)
-    parser.add_argument("--min-workloads", type=int, default=2)
-    parser.add_argument("--abort-relative-threshold", type=float, default=-0.08)
-    parser.add_argument("--hard-abort-relative-threshold", type=float, default=-0.12)
+    parser.add_argument("--min-workloads", type=int, default=None)
+    parser.add_argument("--abort-relative-threshold", type=float, default=None)
+    parser.add_argument("--hard-abort-relative-threshold", type=float, default=None)
     parser.add_argument("--output", default="")
     return parser.parse_args()
+
+
+def default_thresholds(mode: str) -> Tuple[int, float, float]:
+    if mode == "screen":
+        return 2, -0.04, -0.08
+    return 1, -0.03, -0.06
 
 
 def csv_name(dataset_prefix: str, workload_token: str) -> str:
@@ -212,13 +218,20 @@ def main() -> None:
     args = parse_args()
     repo_root = Path(args.repo_root)
     results_dir = Path(args.results_dir)
+    min_workloads, abort_relative_threshold, hard_abort_relative_threshold = default_thresholds(args.mode)
+    if args.min_workloads is not None:
+        min_workloads = args.min_workloads
+    if args.abort_relative_threshold is not None:
+        abort_relative_threshold = args.abort_relative_threshold
+    if args.hard_abort_relative_threshold is not None:
+        hard_abort_relative_threshold = args.hard_abort_relative_threshold
     decision = build_decision(
         repo_root=repo_root,
         results_dir=results_dir,
         mode=args.mode,
-        min_workloads=args.min_workloads,
-        abort_relative_threshold=args.abort_relative_threshold,
-        hard_abort_relative_threshold=args.hard_abort_relative_threshold,
+        min_workloads=min_workloads,
+        abort_relative_threshold=abort_relative_threshold,
+        hard_abort_relative_threshold=hard_abort_relative_threshold,
     )
     payload = json.dumps(decision, indent=2, sort_keys=True) + "\n"
     if args.output:
