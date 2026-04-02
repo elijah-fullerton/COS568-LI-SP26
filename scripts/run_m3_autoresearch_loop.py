@@ -4,6 +4,7 @@ import argparse
 import csv
 import json
 import os
+import random
 import shlex
 import shutil
 import subprocess
@@ -15,6 +16,16 @@ from typing import Dict, Optional, Tuple
 
 PENALTY_INCOMPLETE = -1e18
 STATE_POLL_SECONDS = 30
+EDIT_COMMAND_MAX_RETRIES = 4
+EDIT_COMMAND_RETRY_BASE_SECONDS = 30
+TRANSIENT_EDIT_ERROR_SUBSTRINGS = (
+    "selected model is at capacity",
+    "rate limit",
+    "too many requests",
+    "temporarily unavailable",
+    "server overloaded",
+    "over capacity",
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -404,16 +415,59 @@ def log_forced_penalty(
     )
 
 
+def is_transient_edit_error(exc: subprocess.CalledProcessError) -> bool:
+    chunks = []
+    if exc.stdout:
+        chunks.append(exc.stdout.lower())
+    if exc.stderr:
+        chunks.append(exc.stderr.lower())
+    if isinstance(exc.cmd, str):
+        chunks.append(exc.cmd.lower())
+    combined = "\n".join(chunks)
+    return any(token in combined for token in TRANSIENT_EDIT_ERROR_SUBSTRINGS)
+
+
+def print_captured_output(result: subprocess.CompletedProcess) -> None:
+    if result.stdout:
+        print(result.stdout, end="", flush=True)
+    if result.stderr:
+        print(result.stderr, end="", file=sys.stderr, flush=True)
+
+
 def maybe_run_edit_command(repo_root: Path, edit_command: str) -> None:
     if not edit_command:
         return
-    subprocess.run(
-        edit_command,
-        cwd=str(repo_root),
-        shell=True,
-        text=True,
-        check=True,
-    )
+    for attempt in range(1, EDIT_COMMAND_MAX_RETRIES + 1):
+        result = subprocess.run(
+            edit_command,
+            cwd=str(repo_root),
+            shell=True,
+            text=True,
+            capture_output=True,
+        )
+        print_captured_output(result)
+        if result.returncode == 0:
+            return
+
+        exc = subprocess.CalledProcessError(
+            result.returncode,
+            edit_command,
+            output=result.stdout,
+            stderr=result.stderr,
+        )
+        if attempt == EDIT_COMMAND_MAX_RETRIES or not is_transient_edit_error(exc):
+            raise exc
+
+        delay = EDIT_COMMAND_RETRY_BASE_SECONDS * (2 ** (attempt - 1))
+        jitter = random.randint(0, max(1, delay // 5))
+        total_delay = delay + jitter
+        print(
+            "Edit command hit a transient backend error; "
+            f"retrying in {total_delay}s (attempt {attempt}/{EDIT_COMMAND_MAX_RETRIES})",
+            file=sys.stderr,
+            flush=True,
+        )
+        time.sleep(total_delay)
 
 
 def classify_screen_outcome(screen_rc: Optional[int], result_count: int) -> str:
