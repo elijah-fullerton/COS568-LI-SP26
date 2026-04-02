@@ -8,6 +8,15 @@ from pathlib import Path
 from typing import Dict, List
 
 
+PROGRAM_BRIEF = [
+    "Goal: improve Milestone 3 HybridPGMLIPP against DynamicPGM, LIPP, and the Milestone 2 naive hybrid.",
+    "Primary workloads: mixed 10% insert / 90% lookup and 90% insert / 10% lookup.",
+    "Primary datasets: fb_100M_public_uint64, books_100M_public_uint64, osmc_100M_public_uint64.",
+    "Workflow: make one bounded candidate edit, let the outer loop stage and benchmark it, then stop.",
+    "Priority: restore measurability first when runs fail before producing useful results.",
+]
+
+
 def repo_root_default() -> Path:
     return Path(__file__).resolve().parents[1]
 
@@ -73,12 +82,135 @@ def summarize_recent_context(trajectory: List[Dict[str, object]]) -> List[str]:
     return lines
 
 
+def compact_changed_files(changed_files: object, limit: int = 3) -> str:
+    if not isinstance(changed_files, list) or not changed_files:
+        return "n/a"
+    trimmed = [str(item) for item in changed_files[:limit]]
+    if len(changed_files) > limit:
+        trimmed.append("...")
+    return ", ".join(trimmed)
+
+
+def compact_recent_experiments(trajectory: List[Dict[str, object]], limit: int = 3) -> List[str]:
+    lines: List[str] = []
+    for row in trajectory[-limit:]:
+        candidate = row.get("candidate", {})
+        screen = row.get("screen", {})
+        full = row.get("full", {})
+        lines.append(
+            "- "
+            f"{row.get('iteration', 'n/a')}: status={row.get('status', 'n/a')}, "
+            f"family={candidate.get('mutation_family', 'n/a')}, "
+            f"screen={screen.get('failure_class', 'n/a')}, "
+            f"reward={full.get('reward', 'n/a')}, "
+            f"files={compact_changed_files(candidate.get('changed_files', []))}"
+        )
+    if not lines:
+        lines.append("- No completed experiments recorded yet.")
+    return lines
+
+
+def build_compact_prompt(
+    repo_root: Path,
+    status: Dict[str, object],
+    loop_state: Dict[str, object],
+    trajectory: List[Dict[str, object]],
+    reward_state: Dict[str, object],
+    mutation_policy: Dict[str, object],
+) -> str:
+    editable_paths = mutation_policy.get("editable_paths", [])
+    recent_lines = compact_recent_experiments(trajectory)
+    keeps = [row for row in trajectory if row.get("status") == "keep"]
+    best_keep = None
+    if keeps:
+        best_keep = max(keeps, key=lambda row: float(row.get("full", {}).get("reward", -1e9)))
+
+    lines = [
+        "# Milestone 3 Compact Edit Prompt",
+        "",
+        "Work only in the current repo checkout. Implement exactly one bounded candidate edit and stop.",
+        "Do not submit benchmarks yourself; the outer loop will do that after you exit.",
+        "",
+        "Minimal read set before editing:",
+        "- `autoresearch/current_blocker.md`",
+        "- `autoresearch/current_status.json`",
+        "- `autoresearch/mutation_policy.json`",
+        "- inspect only the specific source files you plan to change",
+        "",
+        "Program brief:",
+    ]
+    lines.extend(f"- {item}" for item in PROGRAM_BRIEF)
+    lines.extend(
+        [
+            "",
+            "Current state:",
+            f"- Incumbent iteration: `{loop_state.get('incumbent_iteration', '') or 'none'}`",
+            f"- Last completed iteration: `{loop_state.get('last_completed_iteration', '') or 'none'}`",
+            f"- Dominant failure class: `{status.get('dominant_failure_class', 'none') or 'none'}`",
+            f"- Recommended edit layer: `{status.get('recommended_edit_layer', 'implementation')}`",
+            f"- Consecutive non-advancing iterations: `{status.get('consecutive_non_advancing_iterations', 0)}`",
+            f"- Low novelty streak: `{status.get('low_novelty_streak', 0)}`",
+            f"- Best tracked hybrid throughput keys: `{len(reward_state.get('best_hybrid_throughput', {}))}`",
+            "",
+            "Allowed edit targets:",
+        ]
+    )
+    lines.extend(f"- `{path}`" for path in editable_paths[:8])
+    if len(editable_paths) > 8:
+        lines.append("- `...`")
+    lines.extend(
+        [
+            "",
+            "Recent experiments:",
+        ]
+    )
+    lines.extend(recent_lines)
+    if best_keep is not None:
+        candidate = best_keep.get("candidate", {})
+        lines.extend(
+            [
+                "",
+                "Best kept reference:",
+                f"- Iteration: `{best_keep.get('iteration', 'n/a')}`",
+                f"- Reward: `{best_keep.get('full', {}).get('reward', 'n/a')}`",
+                f"- Mutation family: `{candidate.get('mutation_family', 'n/a')}`",
+                f"- Changed files: `{compact_changed_files(candidate.get('changed_files', []), limit=4)}`",
+            ]
+        )
+    lines.extend(
+        [
+            "",
+            "Rules:",
+            "- Make one coherent improvement only.",
+            "- Prefer implementation changes over harness churn.",
+            "- Keep sweeps small and measurable.",
+            "- If recent runs failed before usable results, prioritize measurability and robustness over raw throughput tuning.",
+            "- Do not touch unrelated files or broaden scope beyond the allowed paths.",
+            "",
+            "When finished:",
+            "- leave edits in the working tree",
+            "- write a short summary of the candidate idea and expected effect",
+            "- stop",
+            "",
+        ]
+    )
+    return "\n".join(lines)
+
+
 def write_status_files(repo_root: Path) -> None:
     autoresearch = repo_root / "autoresearch"
     preflight = read_tsv(autoresearch / "preflight.tsv")
     results = read_tsv(autoresearch / "results.tsv")
     trajectory = read_jsonl(autoresearch / "trajectory.jsonl")
+    loop_state_path = autoresearch / "loop_state.json"
+    mutation_policy_path = autoresearch / "mutation_policy.json"
     reward_state_path = autoresearch / "reward_state.json"
+    loop_state = {}
+    mutation_policy = {}
+    if loop_state_path.exists():
+        loop_state = json.loads(loop_state_path.read_text(encoding="ascii"))
+    if mutation_policy_path.exists():
+        mutation_policy = json.loads(mutation_policy_path.read_text(encoding="ascii"))
     reward_state = {}
     if reward_state_path.exists():
         reward_state = json.loads(reward_state_path.read_text(encoding="ascii"))
@@ -251,6 +383,17 @@ def write_status_files(repo_root: Path) -> None:
     (autoresearch / "current_blocker.md").write_text("\n".join(lines) + "\n", encoding="ascii")
     (autoresearch / "current_context.md").write_text(
         "\n".join(summarize_recent_context(trajectory)) + "\n",
+        encoding="ascii",
+    )
+    (autoresearch / "codex_edit_prompt.md").write_text(
+        build_compact_prompt(
+            repo_root=repo_root,
+            status=status,
+            loop_state=loop_state,
+            trajectory=trajectory,
+            reward_state=reward_state,
+            mutation_policy=mutation_policy,
+        ),
         encoding="ascii",
     )
 

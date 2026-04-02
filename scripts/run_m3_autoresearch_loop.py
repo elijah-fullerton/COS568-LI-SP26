@@ -30,6 +30,10 @@ TRANSIENT_EDIT_ERROR_SUBSTRINGS = (
     "temporarily unavailable",
     "server overloaded",
     "over capacity",
+    "stream disconnected before completion",
+    "stream disconnected",
+    "reconnecting...",
+    "an error occurred while processing your request",
 )
 DEFAULT_EDITABLE_PATHS = [
     "benchmark.h",
