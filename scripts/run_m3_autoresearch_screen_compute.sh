@@ -43,6 +43,25 @@ download_if_missing() {
   fi
 }
 
+cache_dataset_if_missing() {
+  local dataset_name="$1"
+  local scratch_path="${SCRATCH_ROOT}/cos568_data/${dataset_name}"
+  local cache_path="${DATA_CACHE_ROOT}/${dataset_name}"
+  if [[ ! -f "${scratch_path}" || -f "${cache_path}" ]]; then
+    return
+  fi
+  mkdir -p "${DATA_CACHE_ROOT}"
+  cp -f "${scratch_path}" "${cache_path}"
+}
+
+ensure_dataset_present() {
+  local dataset_name="$1"
+  local url="$2"
+  stage_dataset_if_present "${dataset_name}"
+  download_if_missing "${SCRATCH_ROOT}/cos568_data/${dataset_name}" "${url}"
+  cache_dataset_if_missing "${dataset_name}"
+}
+
 stage_dataset_if_present() {
   local dataset_name="$1"
   mkdir -p "${SCRATCH_ROOT}/cos568_data"
@@ -301,9 +320,8 @@ mkdir -p "${SCRATCH_ROOT}/workspace/results"
 
 cd "${SCRATCH_ROOT}/workspace"
 
-stage_dataset_if_present "fb_100M_public_uint64"
-download_if_missing \
-  "${SCRATCH_ROOT}/cos568_data/fb_100M_public_uint64" \
+ensure_dataset_present \
+  "fb_100M_public_uint64" \
   "https://www.dropbox.com/scl/fi/hngvfbz1a2tkwpebjngb9/fb_100M_public_uint64?rlkey=px31l6wj9tnic4z604bt6s55n&st=d3iuhhgx&dl=0"
 
 cp -f \
@@ -327,9 +345,19 @@ shrink_uint64_dataset_in_place \
   "${SCRATCH_ROOT}/cos568_data/${SCREEN_SMOKE_DATASET_NAME}" \
   "${SCREEN_SMOKE_DATASET_KEYS}" | tee -a "${SCRATCH_ROOT}/job_env.txt"
 
-cmake -S . -B build_scratch -DCMAKE_BUILD_TYPE=Release \
-  -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+cmake_args=(
+  -S .
+  -B build_scratch
+  -DCMAKE_BUILD_TYPE=Release
   -DCMAKE_CXX_FLAGS="-DAUTORESEARCH_SCREEN_SAFE=1"
+)
+if command -v ccache >/dev/null 2>&1; then
+  cmake_args+=(-DCMAKE_CXX_COMPILER_LAUNCHER=ccache)
+  echo "compiler_launcher=ccache" >> "${SCRATCH_ROOT}/job_env.txt"
+else
+  echo "compiler_launcher=none" >> "${SCRATCH_ROOT}/job_env.txt"
+fi
+cmake "${cmake_args[@]}"
 cmake --build build_scratch -j "${BUILD_JOBS}"
 
 generate_ops_if_missing "${SCREEN_DATASET_NAME}" "${SCREEN_LOOKUP_OPS}" "0.100000i" --insert-ratio 0.1 --negative-lookup-ratio 0.5 --mix

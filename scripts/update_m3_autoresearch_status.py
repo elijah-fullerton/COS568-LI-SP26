@@ -16,6 +16,8 @@ PROGRAM_BRIEF = [
     "Priority: restore measurability first when runs fail before producing useful results.",
 ]
 
+FAILURE_DOC_PATH = "docs/autoresearch_rl_failure_analysis_and_literature_review.md"
+
 
 def repo_root_default() -> Path:
     return Path(__file__).resolve().parents[1]
@@ -135,6 +137,7 @@ def build_compact_prompt(
         "- `autoresearch/current_blocker.md`",
         "- `autoresearch/current_status.json`",
         "- `autoresearch/mutation_policy.json`",
+        f"- `{FAILURE_DOC_PATH}` when the blocker is strategy, screening, or measurement",
         "- inspect only the specific source files you plan to change",
         "",
         "Program brief:",
@@ -182,7 +185,7 @@ def build_compact_prompt(
             "",
             "Rules:",
             "- Make one coherent improvement only.",
-            "- Prefer implementation changes over harness churn.",
+            "- Prefer the failure-local fix over another core-design micro-tweak.",
             "- Keep sweeps small and measurable.",
             "- If recent runs failed before usable results, prioritize measurability and robustness over raw throughput tuning.",
             "- Do not touch unrelated files or broaden scope beyond the allowed paths.",
@@ -304,6 +307,14 @@ def write_status_files(repo_root: Path) -> None:
                 "Choose the next edit that maximizes diagnostic information per unit time.",
             ]
         )
+    elif dominant_failure_class == "screen_failure_no_result":
+        recommended_edit_layer = "screening"
+        recommendations.extend(
+            [
+                "The screen is failing before it emits a measurable result.",
+                "Inspect build logs, launcher assumptions, and archived benchmark status before changing HybridPGMLIPP again.",
+            ]
+        )
     elif consecutive_non_advancing >= 3:
         recommended_edit_layer = "strategy"
         recommendations.extend(
@@ -328,6 +339,10 @@ def write_status_files(repo_root: Path) -> None:
     if low_novelty_streak >= 1:
         assumptions.append(
             "Recent mutations are reusing the same file set or design layer and may be under-exploring the search space."
+        )
+    if dominant_failure_class == "screen_failure_no_result":
+        assumptions.append(
+            "At least one recent no-result screen may actually be a harness or build failure rather than a benchmark-level regression."
         )
     if not reward_state.get("best_hybrid_throughput"):
         assumptions.append(

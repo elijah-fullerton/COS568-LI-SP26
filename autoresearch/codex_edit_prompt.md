@@ -1,64 +1,55 @@
-# Milestone 3 Edit Prompt
+# Milestone 3 Compact Edit Prompt
 
-Work only in the current repo checkout.
+Work only in the current repo checkout. Implement exactly one bounded candidate edit and stop.
+Do not submit benchmarks yourself; the outer loop will do that after you exit.
 
-You are responsible for exactly one bounded Milestone 3 candidate edit for the
-hybrid learned index. Do not run the benchmark submission scripts yourself. The
-outer orchestration loop will do that after you exit.
-
-Before editing, read:
-
-- `autoresearch/m3_program.md`
+Minimal read set before editing:
 - `autoresearch/current_blocker.md`
 - `autoresearch/current_status.json`
-- `autoresearch/reward_state.json`
-- `autoresearch/loop_state.json`
-- `autoresearch/results.tsv`
-- `autoresearch/preflight.tsv`
-- `autoresearch/current_context.md`
 - `autoresearch/mutation_policy.json`
+- `docs/autoresearch_rl_failure_analysis_and_literature_review.md` when the blocker is strategy, screening, or measurement
+- inspect only the specific source files you plan to change
 
-If `autoresearch/incumbent_stage/` exists, treat it as the current accepted
-baseline. The outer loop may already have restored it into the working tree.
+Program brief:
+- Goal: improve Milestone 3 HybridPGMLIPP against DynamicPGM, LIPP, and the Milestone 2 naive hybrid.
+- Primary workloads: mixed 10% insert / 90% lookup and 90% insert / 10% lookup.
+- Primary datasets: fb_100M_public_uint64, books_100M_public_uint64, osmc_100M_public_uint64.
+- Workflow: make one bounded candidate edit, let the outer loop stage and benchmark it, then stop.
+- Priority: restore measurability first when runs fail before producing useful results.
 
-Scope:
+Current state:
+- Incumbent iteration: `m3_iter34`
+- Last completed iteration: `m3_iter34`
+- Dominant failure class: `screen_failure_no_result`
+- Recommended edit layer: `strategy`
+- Consecutive non-advancing iterations: `6`
+- Low novelty streak: `5`
+- Best tracked hybrid throughput keys: `0`
 
-- edit only files allowed by `autoresearch/mutation_policy.json`
-- make one coherent improvement only
-- keep the parameter sweep small
-- choose the edit layer based on the blocker, not just the last file edited
-- choose one mutation family intentionally: implementation, screening, or measurement
+Allowed edit targets:
+- `benchmark.h`
+- `util.h`
+- `benchmarks/benchmark_hybrid_pgm_lipp.cc`
+- `benchmarks/benchmark_hybrid_pgm_lipp.h`
+- `competitors/hybrid_pgm_lipp.h`
+- `competitors/PGM-index/include/pgm_index_dynamic.hpp`
+- `competitors/lipp/src/core/lipp.h`
+- `scripts/run_m3_autoresearch_screen_compute.sh`
+- `...`
 
-Do not:
+Recent experiments:
+- m3_iter228: status=crash, family=implementation, screen=screen_failure_no_result, reward=n/a, files=benchmark.h, util.h, benchmarks/benchmark_hybrid_pgm_lipp.cc, ...
+- m3_iter229: status=crash, family=implementation, screen=screen_failure_no_result, reward=n/a, files=benchmark.h, util.h, benchmarks/benchmark_hybrid_pgm_lipp.cc, ...
+- m3_iter230: status=crash, family=implementation, screen=screen_failure_no_result, reward=n/a, files=benchmark.h, util.h, benchmarks/benchmark_hybrid_pgm_lipp.cc, ...
 
-- touch unrelated files
-- run the full autoresearch loop
-- stop after a screen-only result
-- introduce forbidden persistent auxiliary structures outside LIPP and DPGM
-
-Focus:
-
-- reducing lookup miss overhead
-- reducing flush disruption
-- avoiding tiny owner regions and over-aggressive flush thresholds
-- keeping the design milestone-3 compliant
-- restoring measurability before optimizing throughput when a run yields no usable result
-
-Escalation rules:
-
-- First repeated failure: fix the same layer only if the failure is obviously local.
-- Second similar failure: inspect the harness or screening setup before changing the core design again.
-- Third similar failure: change strategy or experiment structure, not just parameters.
-- If two consecutive screen runs time out without a `RESULT` line, the next edit
-  should target screening, sweep ordering, or measurement reliability rather
-  than another micro-tweak inside `hybrid_pgm_lipp.h`.
-- If six consecutive screen runs time out without a `RESULT` line, pivot away
-  from parameter-only tuning in the same design family. Prefer a design-family
-  shift or a stronger diagnostic simplification that is more likely to restore
-  measurable signal.
+Rules:
+- Make one coherent improvement only.
+- Prefer the failure-local fix over another core-design micro-tweak.
+- Keep sweeps small and measurable.
+- If recent runs failed before usable results, prioritize measurability and robustness over raw throughput tuning.
+- Do not touch unrelated files or broaden scope beyond the allowed paths.
 
 When finished:
-
-- leave the code edits in the working tree
+- leave edits in the working tree
 - write a short summary of the candidate idea and expected effect
 - stop
