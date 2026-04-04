@@ -35,16 +35,10 @@ void benchmark_64_hybrid_pgm_lipp(tli::Benchmark<uint64_t>& benchmark,
   }
 #else
   if (filename.find("0.100000i") != std::string::npos) {
-    // Read-heavy runs need to test whether the adaptive controller can
-    // collapse toward a near-LIPP path without violating owner invariants.
-    // Keep one incumbent-style global overlay point for stability, then probe
-    // two owner-buffered micro-flush variants that make overlays short-lived.
-    benchmark.template Run<HybridPGMLIPP<uint64_t, BranchingBinarySearch<record>,
-                                         32, 1 << 27, 1 << 27>>();
+    // Search runs use exactly one lookup-heavy candidate so the milestone
+    // experiment scales as six workloads rather than a read-heavy sweep.
     benchmark.template Run<HybridPGMLIPP<uint64_t, BranchingBinarySearch<record>,
                                          64, 1 << 20, 1 << 12>>();
-    benchmark.template Run<HybridPGMLIPP<uint64_t, BranchingBinarySearch<record>,
-                                         32, 1 << 18, 1 << 10>>();
     return;
   }
 
