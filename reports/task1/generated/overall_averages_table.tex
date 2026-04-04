@@ -1,0 +1,11 @@
+\begin{tabular}{lrrr}
+\toprule
+Workload & BTree & DynamicPGM & LIPP \\
+\midrule
+Lookup-only & 1.816 & 1.849 & \textbf{342.249} \\
+Insert throughput (50/50) & 1.058 & \textbf{5.882} & 1.534 \\
+Lookup after insert (50/50) & 1.648 & 0.486 & \textbf{320.401} \\
+Mixed throughput (10\% insert) & 1.529 & 0.911 & \textbf{13.821} \\
+Mixed throughput (90\% insert) & 1.062 & \textbf{2.812} & 2.211 \\
+\bottomrule
+\end{tabular}
