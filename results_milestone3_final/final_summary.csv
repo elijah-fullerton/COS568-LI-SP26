@@ -1,0 +1,7 @@
+dataset,insert_ratio,workload_label,winning_config,avg_throughput_mops,index_size_bytes,baseline_dynamicpgm_mops,baseline_lipp_mops,baseline_hybrid_mops,beats_dynamicpgm,beats_lipp,beats_prior_hybrid
+books,0.100000i,Mixed 10% Insert / 90% Lookup,BinarySearch-e32-s2147483648-f134217728-bf,3.880580,12164578912,0.157526,3.069023,0.414258,True,True,True
+books,0.900000i,Mixed 90% Insert / 10% Lookup,BinarySearch-e256-s2147483648-f134217728,3.068090,12028076860,0.405588,1.179166,0.427629,True,True,True
+fb,0.100000i,Mixed 10% Insert / 90% Lookup,BinarySearch-e32-s2147483648-f134217728-bf,4.449470,12976751712,0.155932,2.796063,0.444590,True,True,True
+fb,0.900000i,Mixed 90% Insert / 10% Lookup,BinarySearch-e256-s2147483648-f134217728,2.993717,12810513316,0.398770,1.564477,0.454256,True,True,True
+osmc,0.100000i,Mixed 10% Insert / 90% Lookup,BinarySearch-e32-s2147483648-f134217728-bf,3.484003,21086949760,0.149019,2.204447,0.448830,True,True,True
+osmc,0.900000i,Mixed 90% Insert / 10% Lookup,BinarySearch-e256-s2147483648-f134217728,2.419103,20761659652,0.360231,1.090732,0.402413,True,True,True

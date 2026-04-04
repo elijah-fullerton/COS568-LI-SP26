@@ -3,6 +3,7 @@
 #include "benchmark.h"
 #include "benchmarks/common.h"
 #include "competitors/hybrid_pgm_lipp.h"
+#include "competitors/hybrid_pgm_lipp_classic.h"
 
 template <int record>
 void benchmark_64_hybrid_pgm_lipp(tli::Benchmark<uint64_t>& benchmark,
@@ -17,38 +18,39 @@ void benchmark_64_hybrid_pgm_lipp(tli::Benchmark<uint64_t>& benchmark,
 
 #if defined(AUTORESEARCH_SCREEN_SAFE)
   if (filename.find("0.100000i") != std::string::npos) {
-    // Keep the screen canary single-variant-per-workload, but align the
-    // read-heavy probe with the full-run winner so the cheap screen is more
-    // predictive of lookup-miss behavior instead of over-testing the
-    // insert-heavy e256 setting.
+    // Point the read-heavy screen canary at the more aggressive bloom-style
+    // lookup-heavy lane so it better predicts whether early overlay draining
+    // and miss filtering will close the remaining gap to LIPP.
     benchmark.template Run<HybridPGMLIPP<uint64_t, BranchingBinarySearch<record>,
-                                         32, 1 << 27, 1 << 27>>();
+                                         16, 1 << 20, 1 << 12>>();
     return;
   }
 
   if (filename.find("0.900000i") != std::string::npos) {
     // Preserve the insert-heavy canary that keeps almost all updates in one
     // deferred overlay and has remained the strongest full-run point.
-    benchmark.template Run<HybridPGMLIPP<uint64_t, BranchingBinarySearch<record>,
-                                         256, 1 << 27, 1 << 27>>();
+    benchmark.template Run<
+        HybridPGMLIPPClassic<uint64_t, BranchingBinarySearch<record>, 256,
+                             1 << 27, 1 << 27>>();
     return;
   }
 #else
   if (filename.find("0.100000i") != std::string::npos) {
-    // Keep the incumbent read-heavy point, but spend the second slot on a
-    // tighter overlay probe. The previous e256 variant was dominated in every
-    // recent full run, so use the small sweep budget on a more lookup-focused
-    // candidate instead.
+    // Keep the current large-overlay lookup-heavy winners with the bloom-based
+    // miss filter and owner telemetry. The smaller-owner aggressive-flush
+    // points were pathological under verify and are excluded from the stable
+    // full-run sweep.
+    benchmark.template Run<HybridPGMLIPP<uint64_t, BranchingBinarySearch<record>,
+                                         16, 1 << 27, 1 << 27>>();
     benchmark.template Run<HybridPGMLIPP<uint64_t, BranchingBinarySearch<record>,
                                          32, 1 << 27, 1 << 27>>();
-    benchmark.template Run<HybridPGMLIPP<uint64_t, BranchingBinarySearch<record>,
-                                         64, 1 << 27, 1 << 27>>();
     return;
   }
 
   if (filename.find("0.900000i") != std::string::npos) {
-    benchmark.template Run<HybridPGMLIPP<uint64_t, BranchingBinarySearch<record>,
-                                         256, 1 << 27, 1 << 27>>();
+    benchmark.template Run<
+        HybridPGMLIPPClassic<uint64_t, BranchingBinarySearch<record>, 256,
+                             1 << 27, 1 << 27>>();
   }
 #endif
 }

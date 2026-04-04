@@ -148,3 +148,63 @@ Provide a concise page report including bar plots for each workload. Each bar pl
 - Format: Bar plots (throughput and inde size) for both mixed workloads (10% and 90% Insert) across all three datasets (Books, FB, OSMC), totaling 12 plots. Does not need to be very long. 2-4 pages is proper.
 - Precision: Each data point in your plots must be the average of at least 3 repeat runs (-r 3) within a single session.
 - No keys are left behind: Your approach must never discard or lose keys during the flushing process. Any implementation that "skips" data to inflate throughput will result in heavy point deductions. No auxiliary data structures are allowed other than LIPP and DPGM.
+
+# Final Milestone 3 Reproduction
+
+The final stable Milestone 3 artifacts live in [`results_milestone3_final`](./results_milestone3_final). This directory contains:
+
+- the final repeat-3 raw benchmark CSVs for all six mixed workloads
+- `final_summary.csv` with the winning configuration and baseline comparison for each workload
+- `milestone3_best_configs.csv` with the final per-workload winners
+- twelve figures for throughput and index size
+- `milestone3_report.tex` and `milestone3_report.pdf`
+
+The final design uses two implementations:
+
+- `competitors/hybrid_pgm_lipp.h`: bloom-filter-guided lookup-heavy lane
+- `competitors/hybrid_pgm_lipp_classic.h`: classic owner-buffered insert-heavy lane
+
+The workload-sensitive dispatch lives in `benchmarks/benchmark_hybrid_pgm_lipp.cc`.
+
+## Rebuild The Benchmark
+
+```bash
+cmake -S . -B /scratch/$USER/build_m3_final -DCMAKE_BUILD_TYPE=Release
+cmake --build /scratch/$USER/build_m3_final -j 8 --target benchmark
+```
+
+## Run The Final Six Workloads
+
+Assuming the generated workload files already exist under `/scratch/$USER/cos568_data`, run:
+
+```bash
+export TLI_RESULTS_DIR=$PWD/results_milestone3_final
+mkdir -p "$TLI_RESULTS_DIR"
+
+for dataset in books_100M_public_uint64 fb_100M_public_uint64 osmc_100M_public_uint64; do
+  /scratch/$USER/build_m3_final/benchmark \
+    /scratch/$USER/cos568_data/${dataset} \
+    /scratch/$USER/cos568_data/${dataset}_ops_2M_0.000000rq_0.500000nl_0.100000i_0m_mix \
+    --through --verify --csv --only HybridPGMLIPP -r 3
+
+  /scratch/$USER/build_m3_final/benchmark \
+    /scratch/$USER/cos568_data/${dataset} \
+    /scratch/$USER/cos568_data/${dataset}_ops_2M_0.000000rq_0.500000nl_0.900000i_0m_mix \
+    --through --verify --csv --only HybridPGMLIPP -r 3
+done
+```
+
+This writes the six final CSV tables directly into `results_milestone3_final`.
+
+## Regenerate The Summary Tables, Plots, And Report
+
+```bash
+python3 scripts/generate_m3_final_artifacts.py
+cd results_milestone3_final
+pdflatex -interaction=nonstopmode milestone3_report.tex
+pdflatex -interaction=nonstopmode milestone3_report.tex
+```
+
+After those commands finish, the final PDF is available at:
+
+- `results_milestone3_final/milestone3_report.pdf`
